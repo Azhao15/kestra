@@ -44,6 +44,7 @@ import io.kestra.core.services.TaskOutputService;
 import io.kestra.core.storages.kv.KVValueAndMetadata;
 import io.kestra.core.utils.Await;
 import io.kestra.core.utils.IdUtils;
+import io.kestra.plugin.core.flow.PausableTask;
 import io.kestra.plugin.core.flow.Pause;
 
 import io.micronaut.core.io.buffer.ReadBufferFactory;
@@ -475,14 +476,14 @@ class ExecutionServiceTest {
         assertThat(execution.getTaskRunList()).hasSize(1);
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.PAUSED);
 
-        Execution resume = executionService.resume(execution, flow, State.Type.RUNNING, Pause.Resumed.now());
+        Execution resume = executionService.resume(execution, flow, State.Type.RUNNING, PausableTask.Resumed.now());
 
         assertThat(resume.getState().getCurrent()).isEqualTo(State.Type.RESTARTED);
         assertThat(resume.getState().getHistories()).hasSize(4);
 
         assertThrows(
             IllegalArgumentException.class,
-            () -> executionService.resume(resume, flow, State.Type.RUNNING, Pause.Resumed.now())
+            () -> executionService.resume(resume, flow, State.Type.RUNNING, PausableTask.Resumed.now())
         );
     }
 
