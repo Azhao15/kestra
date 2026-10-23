@@ -353,6 +353,7 @@ public final class ExecutorTestHarness {
             workerJobEventQueue,
             subflowExecutionResultQueue,
             executionQueue,
+            runContextFactory,
             runContextLoggerFactory,
             killSwitchService,
             killSwitchActionService,

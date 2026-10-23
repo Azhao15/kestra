@@ -2925,6 +2925,7 @@ public class ExecutionController {
             tenantService.resolveTenant(),
             namespace,
             flowId,
+            Collections.emptyList(),
             endDate.minus(AVERAGE_DURATION_LOOKBACK),
             endDate,
             DateUtils.GroupType.DAY
