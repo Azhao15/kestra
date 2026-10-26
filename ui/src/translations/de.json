@@ -464,7 +464,7 @@
     "resume from breakpoint title": "Execution {id} ab Breakpoint fortsetzen",
     "approval": {
       "review": "Überprüfen",
-      "title": "Execution <code>{id}</code> überprüfen",
+      "title": "Execution {id} überprüfen",
       "approve": "Genehmigen",
       "deny": "Verweigern",
       "comment": "Kommentar",

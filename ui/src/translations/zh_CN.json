@@ -464,7 +464,7 @@
     "resume from breakpoint title": "从断点恢复执行 {id}",
     "approval": {
       "review": "审查",
-      "title": "查看执行 <code>{id}</code>",
+      "title": "查看 execution {id}",
       "approve": "批准",
       "deny": "拒绝",
       "comment": "评论",

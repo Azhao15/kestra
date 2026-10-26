@@ -464,7 +464,7 @@
     "resume from breakpoint title": "ब्रेकपॉइंट से निष्पादन {id} को पुनः शुरू करें",
     "approval": {
       "review": "समीक्षा करें",
-      "title": "Execution <code>{id}</code> की समीक्षा करें",
+      "title": "execution {id} की समीक्षा करें",
       "approve": "अनुमोदित करें",
       "deny": "अस्वीकार करें",
       "comment": "टिप्पणी",

@@ -464,7 +464,7 @@
     "resume from breakpoint title": "Reanudar ejecución {id} desde el punto de interrupción",
     "approval": {
       "review": "Revisar",
-      "title": "Revisar la ejecución <code>{id}</code>",
+      "title": "Revisar la ejecución {id}",
       "approve": "Aprobar",
       "deny": "Denegar",
       "comment": "Comentario",

@@ -464,7 +464,7 @@
     "resume from breakpoint title": "ブレークポイントから実行 {id} を再開します",
     "approval": {
       "review": "レビュー",
-      "title": "実行 <code>{id}</code> をレビュー",
+      "title": "Execution {id} をレビュー",
       "approve": "承認",
       "deny": "拒否",
       "comment": "コメント",

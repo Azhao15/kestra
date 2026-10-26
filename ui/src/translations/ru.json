@@ -464,7 +464,7 @@
     "resume from breakpoint title": "Возобновить выполнение {id} с точки останова",
     "approval": {
       "review": "Обзор",
-      "title": "Просмотр egzekucji <code>{id}</code>",
+      "title": "Просмотр egzekucji {id}",
       "approve": "Одобрить",
       "deny": "Отклонить",
       "comment": "Комментарий",

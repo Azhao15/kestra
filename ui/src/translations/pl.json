@@ -464,7 +464,7 @@
     "resume from breakpoint title": "Wznów egzekucję {id} od Breakpointa",
     "approval": {
       "review": "Przegląd",
-      "title": "Przejrzyj egzekucję <code>{id}</code>",
+      "title": "Przejrzyj egzekucję {id}",
       "approve": "Zatwierdź",
       "deny": "Odmów",
       "comment": "Komentarz",
