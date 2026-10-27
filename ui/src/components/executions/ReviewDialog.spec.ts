@@ -3,13 +3,14 @@ import {flushPromises} from "@vue/test-utils"
 
 const validateReview = vi.hoisted(() => vi.fn())
 const review = vi.hoisted(() => vi.fn())
+const error = vi.hoisted(() => vi.fn())
 
 vi.mock("../../stores/executions", () => ({
     useExecutionsStore: () => ({validateReview, review}),
 }))
 
 vi.mock("../../utils/toast", () => ({
-    useToast: () => ({error: vi.fn(), success: vi.fn()}),
+    useToast: () => ({error, success: vi.fn()}),
 }))
 
 import ReviewDialog from "./ReviewDialog.vue"
@@ -25,14 +26,14 @@ const messages = {
     },
 }
 
-function mountDialog(decisions?: {approve?: string; deny?: string}, inputs?: InputMetaData[]) {
+function mountDialog(decisions?: {approve?: string; deny?: string}, inputs?: InputMetaData[], commentRequired?: string) {
     return i18nMount(ReviewDialog, {
         messages,
         props: {
             modelValue: true,
             execution: {id: "e1", namespace: "ns"} as unknown as Execution,
             taskRun: {id: "tr1", taskId: "approval"},
-            task: {id: "approval", type: "io.kestra.plugin.core.flow.Approval", decisions, inputs},
+            task: {id: "approval", type: "io.kestra.plugin.core.flow.Approval", decisions, inputs, commentRequired},
         },
         global: {
             stubs: {
@@ -60,6 +61,7 @@ describe("ReviewDialog", () => {
     beforeEach(() => {
         validateReview.mockReset().mockResolvedValue({})
         review.mockReset().mockResolvedValue(undefined)
+        error.mockReset()
     })
 
     it("sends the decision and the comment for the task run being reviewed", async () => {
@@ -87,5 +89,29 @@ describe("ReviewDialog", () => {
         await flushPromises()
 
         expect(wrapper.find("[data-test='review-dialog']").attributes("data-dirty")).toBe("false")
+    })
+
+    it("refuses a decision that needs a comment without sending it", async () => {
+        const wrapper = mountDialog(undefined, undefined, "ON_DENY")
+        await flushPromises()
+
+        await wrapper.find("[data-test='review-deny']").trigger("click")
+        await flushPromises()
+
+        expect(error).toHaveBeenCalledWith("approval.comment required")
+        expect(validateReview).not.toHaveBeenCalled()
+        expect(review).not.toHaveBeenCalled()
+    })
+
+    it("does not send a decision the server rejects the inputs of", async () => {
+        validateReview.mockResolvedValue({inputs: [{errors: [{message: "too small"}]}]})
+        const wrapper = mountDialog()
+        await flushPromises()
+
+        await wrapper.find("[data-test='review-approve']").trigger("click")
+        await flushPromises()
+
+        expect(error).toHaveBeenCalledWith("approval.inputs invalid")
+        expect(review).not.toHaveBeenCalled()
     })
 })

@@ -116,4 +116,24 @@ describe("Banner", () => {
             expect.anything(),
         )
     })
+
+    test("explains a pausing execution that will ask for an approval", () => {
+        const banner = mountBanner(buildExecution("PAUSING")).find("[data-test='approval-banner']")
+
+        expect(banner.text()).toContain("approval.banner.pausing")
+    })
+
+    test("asks for a review only when the paused task run is an approval", () => {
+        useExecutionsStore().flow = {tasks: [
+            {id: "approval", type: "io.kestra.plugin.core.flow.Approval"},
+            {id: "pause", type: "io.kestra.plugin.core.flow.Pause"},
+        ]} as never
+        const pausedOn = (taskId: string) => ({
+            ...buildExecution("PAUSED"),
+            taskRunList: [{id: "tr", taskId, state: {current: "PAUSED"}}],
+        }) as unknown as Execution
+
+        expect(mountBanner(pausedOn("approval")).find("[data-test='approval-banner']").text()).toContain("approval.banner.paused")
+        expect(mountBanner(pausedOn("pause")).find("[data-test='approval-banner']").exists()).toBe(false)
+    })
 })

@@ -1,36 +1,39 @@
 <template>
     <ReviewDialog
-        v-if="opened"
+        v-if="opened?.paused"
         v-model="dialogOpen"
         :execution="execution"
         :taskRun="opened.taskRun"
         :task="opened.task"
+    />
+    <ReviewedDialog
+        v-else-if="opened"
+        v-model="dialogOpen"
+        :execution="execution"
+        :taskRun="opened.taskRun"
     />
 </template>
 
 <script setup lang="ts">
     import {computed, ref, watch} from "vue"
     import {useRoute, useRouter} from "vue-router"
-    import {useI18n} from "vue-i18n"
     import ReviewDialog from "./ReviewDialog.vue"
+    import ReviewedDialog from "./ReviewedDialog.vue"
     import {useApprovalReviewer} from "../../composables/useApprovalReviewer"
     import {findApprovalTask, type ApprovalTask, type ApprovalTaskRun} from "../../utils/approval"
     import {useExecutionsStore, type Execution} from "../../stores/executions"
-    import {useToast} from "../../utils/toast"
 
     const props = defineProps<{
         execution: Execution;
     }>()
 
-    const {t} = useI18n()
     const route = useRoute()
     const router = useRouter()
     const executionsStore = useExecutionsStore()
-    const toast = useToast()
     const {enabled} = useApprovalReviewer(() => props.execution)
 
     const dialogOpen = ref(false)
-    const opened = ref<{taskRun: ApprovalTaskRun; task: ApprovalTask}>()
+    const opened = ref<{taskRun: ApprovalTaskRun; task: ApprovalTask; paused: boolean}>()
 
     const requested = computed(() => {
         const requestedId = route.query.review
@@ -45,12 +48,8 @@
             if (found === undefined || (found.paused && !isEnabled)) {
                 return
             }
-            if (found.paused) {
-                opened.value = {taskRun: found.taskRun, task: found.task}
-                dialogOpen.value = true
-            } else {
-                toast.warning(t("approval.already decided"))
-            }
+            opened.value = found
+            dialogOpen.value = true
             const {review: _review, ...query} = route.query
             router.replace({query})
         },

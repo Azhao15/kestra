@@ -4,12 +4,6 @@ import {flushPromises} from "@vue/test-utils"
 const route = vi.hoisted(() => ({query: {} as Record<string, string>}))
 const replace = vi.hoisted(() => vi.fn())
 const reviewAllowed = vi.hoisted(() => vi.fn())
-const warning = vi.hoisted(() => vi.fn())
-
-vi.mock("../../utils/toast", () => ({
-    useToast: () => ({warning}),
-}))
-
 vi.mock("vue-router", () => ({
     useRoute: () => route,
     useRouter: () => ({replace}),
@@ -39,6 +33,7 @@ function mountReview(state: string) {
         global: {
             stubs: {
                 ReviewDialog: {props: ["modelValue"], template: "<div data-test=\"dialog\" :data-open=\"modelValue\" />"},
+                ReviewedDialog: {props: ["modelValue"], template: "<div data-test=\"reviewed\" :data-open=\"modelValue\" />"},
             },
         },
     })
@@ -48,18 +43,16 @@ describe("ReviewLink", () => {
     beforeEach(() => {
         route.query = {}
         replace.mockReset()
-        warning.mockReset()
         reviewAllowed.mockReset().mockResolvedValue(false)
     })
 
-    it("warns instead of opening the dialog for a review link to an approval that is already decided", async () => {
+    it("shows the review that was made for a review link to an approval that is already decided", async () => {
         route.query = {review: "tr1"}
-        reviewAllowed.mockResolvedValue(true)
         const wrapper = mountReview("SUCCESS")
         await flushPromises()
 
         expect(wrapper.find("[data-test='dialog']").exists()).toBe(false)
-        expect(warning).toHaveBeenCalledWith("approval.already decided")
+        expect(wrapper.find("[data-test='reviewed']").attributes("data-open")).toBe("true")
         expect(replace).toHaveBeenCalledWith({query: {}})
     })
 

@@ -4,6 +4,7 @@ import KestraDesignSystem from "@kestra-io/design-system"
 const executionState = {current: "SUCCESS"}
 const permissions = {execute: true}
 const storeState = vi.hoisted(() => ({taskRunList: [] as {taskId: string; state: {current: string}}[], flow: undefined as unknown}))
+const loadFlowForExecutionByExecutionId = vi.hoisted(() => vi.fn())
 
 vi.mock("vue-router", () => ({
     useRoute: () => ({params: {namespace: "ns", flowId: "f", id: "e"}, query: {}}),
@@ -15,7 +16,7 @@ vi.mock("../../stores/executions", () => ({
     useExecutionsStore: () => ({
         execution: {id: "e", namespace: "ns", flowId: "f", state: executionState, labels: [], taskRunList: storeState.taskRunList},
         flow: storeState.flow,
-        loadFlowForExecutionByExecutionId: vi.fn(() => Promise.resolve()),
+        loadFlowForExecutionByExecutionId,
     }),
 }))
 
@@ -42,6 +43,7 @@ beforeEach(() => {
     permissions.execute = true
     storeState.taskRunList = []
     storeState.flow = undefined
+    loadFlowForExecutionByExecutionId.mockReset().mockResolvedValue(undefined)
 })
 
 function mountTopBar() {
@@ -175,5 +177,20 @@ describe("ExecutionRootTopBar — an Approval paused beside another pause", () =
         storeState.taskRunList = [{taskId: "approval", state: {current: "PAUSED"}}]
 
         expect(await overflowLabels()).not.toContain("Resume")
+    })
+})
+
+describe("ExecutionRootTopBar — loads the flow a paused execution needs to tell an approval from a pause", () => {
+    it("loads the flow once the execution pauses and it is not loaded yet", () => {
+        executionState.current = "PAUSED"
+        mountTopBar()
+
+        expect(loadFlowForExecutionByExecutionId).toHaveBeenCalledWith({id: "e"})
+    })
+
+    it("does not load the flow for an execution that is not paused", () => {
+        mountTopBar()
+
+        expect(loadFlowForExecutionByExecutionId).not.toHaveBeenCalled()
     })
 })
