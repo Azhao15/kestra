@@ -476,8 +476,19 @@
       },
       "comment required": "Komentarz jest wymagany dla tej decyzji.",
       "inputs invalid": "Niektóre Inputy są nieprawidłowe: {errors}",
-      "already decided": "Decyzja w sprawie tego żądania zatwierdzenia została już podjęta.",
       "review done": "Twoja recenzja została zapisana",
+      "reviewed": {
+        "title": "Żądanie zatwierdzenia egzekucji {id}",
+        "explanation": "To żądanie zatwierdzenia nie czeka już na recenzję.",
+        "decision": "Decyzja",
+        "by": "Zdecydowano przez",
+        "on": "Zdecydowano na",
+        "decisions": {
+          "approved": "Zatwierdzono",
+          "denied": "Odmówiono",
+          "expired": "Wygasłe"
+        }
+      },
       "cancel request": "Anuluj żądanie",
       "cancel confirm": "Czy na pewno chcesz anulować prośbę o zatwierdzenie egzekucji <code>{id}</code>? Żadna gałąź decyzyjna nie zostanie uruchomiona.",
       "cancel done": "Żądanie zatwierdzenia zostało anulowane",

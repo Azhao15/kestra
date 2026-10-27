@@ -476,8 +476,19 @@
       },
       "comment required": "Un commentaire est requis pour cette décision.",
       "inputs invalid": "Certains inputs sont invalides : {errors}",
-      "already decided": "Une décision a déjà été prise concernant cette demande d'approbation.",
       "review done": "Votre avis a été enregistré",
+      "reviewed": {
+        "title": "Demande d'approbation de l'exécution {id}",
+        "explanation": "Cette demande d'approbation n'attend plus de révision.",
+        "decision": "Décision",
+        "by": "Décidé par",
+        "on": "Décidé le",
+        "decisions": {
+          "approved": "Approuvé",
+          "denied": "Refusé",
+          "expired": "Expiré"
+        }
+      },
       "cancel request": "Annuler la demande",
       "cancel confirm": "Êtes-vous sûr de vouloir annuler la demande d'approbation de l'exécution <code>{id}</code> ? Aucune branche de décision ne sera exécutée.",
       "cancel done": "La demande d'approbation a été annulée",
