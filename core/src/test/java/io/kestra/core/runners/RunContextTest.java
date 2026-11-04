@@ -154,7 +154,7 @@ class RunContextTest {
             "io.kestra.tests",
             "inputs-large",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs)
+            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs))
         );
 
         assertThat(execution.getTaskRunList()).hasSize(10);

@@ -121,17 +121,14 @@ public class InputsTest {
     }
 
     private Map<String, Object> typedInputs(Map<String, Object> map, Flow flow) {
-        return flowIO.readExecutionInputs(
-            flow,
-            Execution.builder()
-                .id("test")
-                .namespace(flow.getNamespace())
-                .tenantId(flow.getTenantId())
-                .flowRevision(1)
-                .flowId(flow.getId())
-                .build(),
-            map
-        );
+        Execution execution = Execution.builder()
+            .id("test")
+            .namespace(flow.getNamespace())
+            .tenantId(flow.getTenantId())
+            .flowRevision(1)
+            .flowId(flow.getId())
+            .build();
+        return flowIO.readExecutionInputs(flow, execution, flowIO.uploadLocalFileInputs(flow, execution, map));
     }
 
     @Test
@@ -141,6 +138,27 @@ public class InputsTest {
         inputs.put("string", null);
         InputOutputValidationException e = assertThrows(InputOutputValidationException.class, () -> typedInputs(inputs, MAIN_TENANT));
         assertThat(e.getMessage()).contains("Missing required input:string");
+    }
+
+    @Test
+    @LoadFlows(value = { "flows/valids/inputs.yaml" }, tenantId = "rawpathfileinput")
+    void fileInputWithRawLocalPathIsRejected() {
+        Flow flow = flowRepository.findById("rawpathfileinput", "io.kestra.tests", "inputs").orElseThrow();
+        Execution execution = Execution.builder()
+            .id("rawpath")
+            .namespace(flow.getNamespace())
+            .tenantId(flow.getTenantId())
+            .flowRevision(1)
+            .flowId(flow.getId())
+            .build();
+        HashMap<String, Object> inputs = new HashMap<>(InputsTest.inputs);
+
+        InputOutputValidationException e = assertThrows(
+            InputOutputValidationException.class,
+            () -> flowIO.readExecutionInputs(flow, execution, inputs)
+        );
+
+        assertThat(e.getMessage()).contains("Invalid FILE input value");
     }
 
     @Test
@@ -221,7 +239,7 @@ public class InputsTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs)
+            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs))
         );
 
         assertThat(execution.getTaskRunList()).hasSize(16);
@@ -397,7 +415,7 @@ public class InputsTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, map)
+            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, map))
         );
 
         assertThat(execution.getTaskRunList()).hasSize(16);
@@ -451,7 +469,7 @@ public class InputsTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, newInputs)
+            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, newInputs))
         );
 
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.SUCCESS);
@@ -470,7 +488,7 @@ public class InputsTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs)
+            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs))
         );
 
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.SUCCESS);

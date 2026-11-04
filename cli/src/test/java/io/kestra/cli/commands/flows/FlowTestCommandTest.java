@@ -28,4 +28,23 @@ class FlowTestCommandTest {
             assertThat(out.toString()).contains("SUCCESS");
         }
     }
+
+    @Test
+    void runWithLocalFileInput() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(out));
+
+        try (ApplicationContext ctx = ApplicationContext.run(Environment.CLI, Environment.TEST)) {
+            String[] args = {
+                "src/test/resources/flow-test/file-input.yaml",
+                "file",
+                "src/test/resources/flow-test/hello.txt"
+            };
+            Integer call = PicocliRunner.call(FlowTestCommand.class, ctx, args);
+
+            assertThat(call).isZero();
+            assertThat(out.toString()).contains("Successfully executed the flow with execution");
+            assertThat(out.toString()).contains("SUCCESS");
+        }
+    }
 }

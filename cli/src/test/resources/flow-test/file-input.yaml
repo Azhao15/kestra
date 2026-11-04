@@ -1,0 +1,11 @@
+id: file-input
+namespace: io.kestra.cli
+
+inputs:
+  - id: file
+    type: FILE
+
+tasks:
+  - id: read
+    type: io.kestra.plugin.core.debug.Return
+    format: "{{ read(inputs.file) }}"

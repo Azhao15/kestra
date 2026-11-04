@@ -72,7 +72,7 @@ public abstract class JdbcRunnerTest extends AbstractRunnerTest {
             NAMESPACE,
             "inputs-large",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs)),
             Duration.ofSeconds(120)
         );
 
@@ -95,7 +95,7 @@ public abstract class JdbcRunnerTest extends AbstractRunnerTest {
                 NAMESPACE,
                 "inputs-large",
                 null,
-                (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+                (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs)),
                 Duration.ofSeconds(60)
             )
         );
