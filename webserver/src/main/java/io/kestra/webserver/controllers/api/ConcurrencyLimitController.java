@@ -10,10 +10,12 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Body;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
+import io.micronaut.http.annotation.PathVariable;
 import io.micronaut.http.annotation.Put;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.inject.Inject;
 
 @Controller("/api/v1/{tenant}/concurrency-limit")
@@ -35,11 +37,30 @@ public class ConcurrencyLimitController {
     @ExecuteOn(TaskExecutors.IO)
     @Put("/{namespace}/{flowId}")
     @Operation(tags = { "Flows" }, summary = "Update a flow concurrency limit")
-    public HttpResponse<ConcurrencyLimit> updateConcurrencyLimit(@Body ConcurrencyLimit concurrencyLimit) {
-        var existing = concurrencyLimitService.findById(concurrencyLimit.getTenantId(), concurrencyLimit.getNamespace(), concurrencyLimit.getFlowId());
+    public HttpResponse<ConcurrencyLimit> updateConcurrencyLimit(
+        @Parameter(description = "The flow namespace") @PathVariable String namespace,
+        @Parameter(description = "The flow id") @PathVariable String flowId,
+        @Body ConcurrencyLimit concurrencyLimit) {
+        String tenantId = tenantService.resolveTenant();
+        if (
+            isMismatch(concurrencyLimit.getTenantId(), tenantId)
+                || isMismatch(concurrencyLimit.getNamespace(), namespace)
+                || isMismatch(concurrencyLimit.getFlowId(), flowId)
+        ) {
+            throw new IllegalArgumentException("The concurrency limit tenant, namespace and flowId must match the request path.");
+        }
+        if (concurrencyLimit.getRunning() == null || concurrencyLimit.getRunning() < 0) {
+            throw new IllegalArgumentException("The concurrency limit 'running' value must be zero or greater.");
+        }
+
+        var existing = concurrencyLimitService.findById(tenantId, namespace, flowId);
         if (existing.isEmpty()) {
             return HttpResponse.notFound();
         }
-        return HttpResponse.ok(concurrencyLimitService.update(concurrencyLimit));
+        return HttpResponse.ok(concurrencyLimitService.update(existing.get().withRunning(concurrencyLimit.getRunning())));
+    }
+
+    private static boolean isMismatch(String bodyValue, String expected) {
+        return bodyValue != null && !bodyValue.equals(expected);
     }
 }

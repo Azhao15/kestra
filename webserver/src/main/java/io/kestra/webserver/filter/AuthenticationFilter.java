@@ -3,6 +3,7 @@ package io.kestra.webserver.filter;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import org.reactivestreams.Publisher;
 
@@ -34,6 +35,9 @@ public class AuthenticationFilter implements HttpServerFilter {
     private static final String PREFIX = "Basic";
     private static final Integer ORDER = ServerFilterPhase.SECURITY.order();
     public static final String BASIC_AUTH_COOKIE_NAME = "BASIC_AUTH";
+    private static final String CONFIGS_PATH = "/api/v1/configs";
+    private static final String BASIC_AUTH_VALIDATION_ERRORS_PATH = "/api/v1/basicAuthValidationErrors";
+    private static final Pattern BASIC_AUTH_PATH = Pattern.compile("/api/v1(/[^/]+)?/basicAuth");
 
     @Inject
     private BasicAuthService basicAuthService;
@@ -50,8 +54,9 @@ public class AuthenticationFilter implements HttpServerFilter {
             .flux()
             .flatMap(basicAuthConfiguration ->
             {
-                boolean isConfigEndpoint = request.getPath().endsWith("/configs")
-                    || ((request.getPath().endsWith("/basicAuth") || request.getPath().endsWith("/basicAuthValidationErrors"))
+                String path = request.getPath();
+                boolean isConfigEndpoint = CONFIGS_PATH.equals(path)
+                    || ((BASIC_AUTH_PATH.matcher(path).matches() || BASIC_AUTH_VALIDATION_ERRORS_PATH.equals(path))
                         && !basicAuthService.isBasicAuthInitialized());
 
                 boolean isOpenUrl = Optional.ofNullable(basicAuthConfiguration.openUrls())
