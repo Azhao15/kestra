@@ -269,7 +269,10 @@ class ExecutionControllerRunnerTest {
         when(tenantService.resolveTenant()).thenReturn(tenantId);
         MultipartBody.Builder builder = MultipartBody.builder()
             .addPart("validatedString", "B-failed");
-        inputs.forEach((s, o) -> builder.addPart(s, o instanceof String str ? str : null));
+        inputs.entrySet().stream()
+            .filter(e -> !"file".equals(e.getKey()))
+            .forEach(e -> builder.addPart(e.getKey(), e.getValue() instanceof String str ? str : null));
+        builder.addPart("file", "hello.txt", MediaType.TEXT_PLAIN_TYPE, new File((String) inputs.get("file")));
 
         HttpClientResponseException e = assertThrows(
             HttpClientResponseException.class,
@@ -280,6 +283,27 @@ class ExecutionControllerRunnerTest {
 
         assertThat(response).contains("Invalid entity");
         assertThat(response).contains("Invalid value for input `validatedString`");
+    }
+
+    @Test
+    @LoadFlows(value = { "flows/valids/inputs.yaml" }, tenantId = "rawpathfileinput")
+    void fileInputWithRawServerPathIsRejected() {
+        String tenantId = "rawpathfileinput";
+        when(tenantService.resolveTenant()).thenReturn(tenantId);
+        MultipartBody.Builder builder = MultipartBody.builder();
+        inputs.forEach((s, o) -> builder.addPart(s, o instanceof String str ? str : null));
+        builder.addPart("file", "/etc/hostname");
+
+        HttpClientResponseException e = assertThrows(
+            HttpClientResponseException.class,
+            () -> triggerExecutionExecution(tenantId, TESTS_FLOW_NS, "inputs", builder.build(), false)
+        );
+
+        String response = e.getResponse().getBody(String.class).orElseThrow();
+
+        assertThat(e.getStatus().getCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY.getCode());
+        assertThat(response).contains("Invalid FILE input value");
+        assertThat(executionRepositoryInterface.findByFlowId(tenantId, TESTS_FLOW_NS, "inputs", Pageable.from(1))).isEmpty();
     }
 
     @Test
@@ -411,7 +435,8 @@ class ExecutionControllerRunnerTest {
         assertThat(resultMap.get("type")).isEqualTo(EncryptedString.TYPE);
         assertThat(resultMap.get("value")).isNotNull();
 
-        execution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        execution = runnerUtils
+            .runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs)));
 
         result = this.evalTaskRunExpression(execution, "{{inputs.secret}}", 0);
         try {
@@ -468,7 +493,8 @@ class ExecutionControllerRunnerTest {
         final String referenceTaskId = "unknownTaskId";
 
         // Run execution until it ends
-        Execution parentExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution parentExecution = runnerUtils
+            .runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs)));
 
         HttpClientResponseException e = assertThrows(
             HttpClientResponseException.class, () -> client.toBlocking().retrieve(
@@ -491,7 +517,8 @@ class ExecutionControllerRunnerTest {
         final String flowId = "restart_with_inputs";
 
         // Run execution until it ends
-        Execution parentExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution parentExecution = runnerUtils
+            .runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs)));
 
         HttpClientResponseException e = assertThrows(
             HttpClientResponseException.class, () -> client.toBlocking().retrieve(
@@ -515,7 +542,8 @@ class ExecutionControllerRunnerTest {
         final String referenceTaskId = "instant";
 
         // Run execution until it ends
-        Execution parentExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution parentExecution = runnerUtils
+            .runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs)));
 
         Optional<Flow> flow = flowRepositoryInterface.findById(tenantId, TESTS_FLOW_NS, flowId);
 
@@ -681,7 +709,7 @@ class ExecutionControllerRunnerTest {
         // Run execution until it ends
         Execution parentExecution = runnerUtils.runOne(
             TENANT_ID, TESTS_FLOW_NS, flowId, null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs)
+            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs))
         );
 
         Optional<Flow> flow = flowRepositoryInterface.findById(TENANT_ID, TESTS_FLOW_NS, flowId);
@@ -845,7 +873,8 @@ class ExecutionControllerRunnerTest {
     void downloadInternalStorageFileFromExecution() throws TimeoutException, QueueException {
         String tenantId = "downloadinternalstoragefilefromexecution";
         when(tenantService.resolveTenant()).thenReturn(tenantId);
-        Execution execution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution execution = runnerUtils
+            .runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs)));
         assertThat(execution.getTaskRunList()).hasSize(16);
 
         String path = (String) execution.getInputs().get("file");
@@ -889,7 +918,8 @@ class ExecutionControllerRunnerTest {
     void previewInternalStorageFileFromExecution() throws TimeoutException, QueueException {
         String tenantId = "previewinternalstoragefilefromexecution";
         when(tenantService.resolveTenant()).thenReturn(tenantId);
-        Execution defaultExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution defaultExecution = runnerUtils
+            .runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, inputs)));
         assertThat(defaultExecution.getTaskRunList()).hasSize(16);
 
         String defaultPath = (String) defaultExecution.getInputs().get("file");
@@ -915,7 +945,9 @@ class ExecutionControllerRunnerTest {
             .put("yaml1", "{}")
             .build();
 
-        Execution latin1Execution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, latin1FileInputs));
+        Execution latin1Execution = runnerUtils.runOne(
+            tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, latin1FileInputs))
+        );
         assertThat(latin1Execution.getTaskRunList()).hasSize(16);
 
         String latin1Path = (String) latin1Execution.getInputs().get("file");
@@ -952,7 +984,7 @@ class ExecutionControllerRunnerTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, newInputs)
+            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, newInputs))
         );
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.SUCCESS);
 
@@ -995,7 +1027,7 @@ class ExecutionControllerRunnerTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, newInputs)
+            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, flowIO.uploadLocalFileInputs(flow, execution1, newInputs))
         );
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.SUCCESS);
 

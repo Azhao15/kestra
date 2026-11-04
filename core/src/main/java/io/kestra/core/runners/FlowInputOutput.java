@@ -3,6 +3,7 @@ package io.kestra.core.runners;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -228,6 +229,33 @@ public class FlowInputOutput {
             }
         }
         return MapUtils.flattenToNestedMap(resolved);
+    }
+
+    /**
+     * Uploads the FILE inputs whose value is a path on the local filesystem to the execution's internal storage,
+     * replacing them with the resulting {@code kestra://} URI.
+     * <p>
+     * This must only be used by trusted local callers (e.g. the CLI {@code flow test} command), never with data coming from an API request.
+     *
+     * @param flow The Flow.
+     * @param execution The Execution.
+     * @param data The Execution's inputs data.
+     * @return A copy of the inputs data with local FILE paths replaced by internal storage URIs.
+     */
+    public Map<String, Object> uploadLocalFileInputs(final FlowInterface flow, final Execution execution, final Map<String, ?> data) {
+        Map<String, Object> result = new HashMap<>(data);
+        for (Input<?> input : ListUtils.emptyOnNull(flow.getInputs())) {
+            if (input.getType() != Type.FILE || !(data.get(input.getId()) instanceof String path) || URIFetcher.supports(path)) {
+                continue;
+            }
+            try {
+                File file = new File(path);
+                result.put(input.getId(), storageInterface.from(execution, input.getId(), file.getName(), file).toString());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to upload local file for input '" + input.getId() + "'", e);
+            }
+        }
+        return result;
     }
 
     /**
@@ -491,11 +519,12 @@ public class FlowInputOutput {
                 case FILE -> {
                     URI uri = URI.create(current.toString().replace(File.separator, "/"));
 
-                    if (URIFetcher.supports(uri)) {
-                        yield uri;
-                    } else {
-                        yield storageInterface.from(execution, id, current.toString().substring(current.toString().lastIndexOf("/") + 1), new File(current.toString()));
+                    if (!URIFetcher.supports(uri)) {
+                        throw new IllegalArgumentException(
+                            "Invalid FILE input value: a file must be uploaded or referenced with one of the supported URI schemes (kestra://, file://, nsfile://)"
+                        );
                     }
+                    yield uri;
                 }
                 case JSON -> (current instanceof Map || current instanceof Collection<?>) ? current : JacksonMapper.toObject(current.toString());
                 case YAML -> (current instanceof Map || current instanceof Collection<?>) ? current : YAML_MAPPER.readValue(current.toString(), JacksonMapper.OBJECT_TYPE_REFERENCE);
