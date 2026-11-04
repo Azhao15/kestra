@@ -9,13 +9,16 @@ import io.kestra.core.runners.ConcurrencyLimit;
 import io.kestra.webserver.responses.PagedResults;
 
 import io.micronaut.core.type.Argument;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.client.annotation.Client;
+import io.micronaut.http.client.exceptions.HttpClientResponseException;
 import io.micronaut.reactor.http.client.ReactorHttpClient;
 import jakarta.inject.Inject;
 
 import static io.micronaut.http.HttpRequest.GET;
 import static io.micronaut.http.HttpRequest.PUT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @KestraTest(startRunner = true)
 class ConcurrencyLimitControllerTest {
@@ -46,5 +49,17 @@ class ConcurrencyLimitControllerTest {
         );
         assertThat(updated).isNotNull();
         assertThat(updated.getRunning()).isEqualTo(99);
+        assertThat(updated.getNamespace()).isEqualTo(concurrencyLimit.getNamespace());
+        assertThat(updated.getFlowId()).isEqualTo(concurrencyLimit.getFlowId());
+
+        // body identifiers must match the path
+        HttpClientResponseException e = assertThrows(
+            HttpClientResponseException.class,
+            () -> client.toBlocking().retrieve(
+                PUT("/api/v1/main/concurrency-limit/" + concurrencyLimit.getNamespace() + "/other-flow", concurrencyLimit.withRunning(1)),
+                ConcurrencyLimit.class
+            )
+        );
+        assertThat(e.getStatus().getCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY.getCode());
     }
 }

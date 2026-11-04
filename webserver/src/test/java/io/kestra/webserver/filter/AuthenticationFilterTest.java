@@ -217,4 +217,40 @@ class AuthenticationFilterTest {
         ).block();
         assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.UNAUTHORIZED.getCode());
     }
+
+    @Test
+    void should_unauthorized_on_non_config_route_ending_with_configs() {
+        MutableHttpResponse<?> response = Mono.from(
+            filter.doFilter(
+                HttpRequest.PUT("/api/v1/main/concurrency-limit/x/configs", "{}"), null
+            )
+        ).block();
+        assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.UNAUTHORIZED.getCode());
+
+        HttpClientResponseException e = assertThrows(
+            HttpClientResponseException.class,
+            () -> client.toBlocking()
+                .exchange(
+                    HttpRequest.PUT("/api/v1/main/concurrency-limit/x/configs", "{\"tenantId\":\"main\",\"namespace\":\"io.kestra.tests\",\"flowId\":\"flow\",\"running\":9999}")
+                        .header("Authorization", "")
+                )
+        );
+        assertThat(e.getStatus().getCode()).isEqualTo(HttpStatus.UNAUTHORIZED.getCode());
+    }
+
+    @Test
+    void should_unauthorized_on_non_basic_auth_route_ending_with_basic_auth() {
+        settingRepository.delete(Setting.builder().key(BASIC_AUTH_SETTINGS_KEY).build());
+        assertThat(basicAuthService.isBasicAuthInitialized()).isFalse();
+        try {
+            for (String path : new String[] { "/api/v1/main/dashboards/basicAuth", "/api/v1/main/flows/ns/basicAuthValidationErrors", "/api/v1/main/dashboards/configs" }) {
+                MutableHttpResponse<?> response = Mono.from(
+                    filter.doFilter(HttpRequest.GET(path), null)
+                ).block();
+                assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.UNAUTHORIZED.getCode());
+            }
+        } finally {
+            basicAuthService.init();
+        }
+    }
 }
