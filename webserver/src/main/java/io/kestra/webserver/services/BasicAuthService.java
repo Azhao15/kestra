@@ -117,19 +117,8 @@ public class BasicAuthService {
      */
     public void saveFromApi(BasicAuthCredentials basicAuthCredentials, @Nullable String setupToken) {
         boolean bootstrap = !isBasicAuthInitialized();
-        if (bootstrap) {
-            if (configuredCredentialsInvalid) {
-                throw new HttpStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "The configured basic authentication credentials are invalid. Fix 'kestra.server.basic-auth' in the server configuration."
-                );
-            }
-            if (!isValidSetupToken(setupToken)) {
-                throw new HttpStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Invalid or missing setup token. The setup token is printed in the Kestra server logs."
-                );
-            }
+        if (bootstrap && !isValidSetupToken(setupToken)) {
+            throw new HttpStatusException(HttpStatus.FORBIDDEN, setupRejectionMessage());
         }
 
         save(basicAuthCredentials);
@@ -137,6 +126,12 @@ public class BasicAuthService {
         if (bootstrap) {
             deleteSettingIfPresent(BASIC_AUTH_SETUP_TOKEN_KEY);
         }
+    }
+
+    public String setupRejectionMessage() {
+        return configuredCredentialsInvalid
+            ? "The configured basic authentication credentials are invalid. Fix 'kestra.server.basic-auth' in the server configuration."
+            : "Invalid or missing setup token. The setup token is printed in the Kestra server logs.";
     }
 
     public boolean isValidSetupToken(@Nullable String setupToken) {

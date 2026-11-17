@@ -12,12 +12,14 @@ import io.kestra.webserver.services.BasicAuthService;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.annotation.Filter;
 import io.micronaut.http.cookie.Cookie;
 import io.micronaut.http.filter.HttpServerFilter;
 import io.micronaut.http.filter.ServerFilterChain;
 import io.micronaut.http.filter.ServerFilterPhase;
+import io.micronaut.http.hateoas.JsonError;
 import io.micronaut.management.endpoint.annotation.Endpoint;
 import io.micronaut.web.router.MethodBasedRouteMatch;
 import io.micronaut.web.router.RouteMatch;
@@ -62,6 +64,10 @@ public class AuthenticationFilter implements HttpServerFilter {
 
                 if (isConfigEndpoint || isOpenUrl || isManagementEndpoint(request)) {
                     return chain.proceed(request);
+                }
+
+                if (path.endsWith("/basicAuth") && !basicAuthService.isBasicAuthInitialized()) {
+                    return Mono.just(HttpResponse.status(HttpStatus.FORBIDDEN).body(new JsonError(basicAuthService.setupRejectionMessage())));
                 }
 
                 var basicAuth = fromCookie(request)

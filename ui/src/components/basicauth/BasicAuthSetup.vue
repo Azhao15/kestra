@@ -75,7 +75,13 @@
                                     showPassword
                                     v-model="userFormData.setupToken"
                                     autocomplete="off"
-                                />
+                                >
+                                    <template #suffix v-if="getFieldError('setupToken')">
+                                        <el-tooltip placement="top" :content="getFieldError('setupToken')">
+                                            <InformationOutline class="validation-icon error" />
+                                        </el-tooltip>
+                                    </template>
+                                </el-input>
                             </el-form-item>
                             <div class="setup-token-requirements mb-2">
                                 <el-text>

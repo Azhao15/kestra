@@ -113,13 +113,14 @@ class AuthenticationFilterTest {
             HttpClientResponseException.class, () -> client.toBlocking()
                 .exchange(HttpRequest.POST("/api/v1/basicAuth", setupCredentials))
         );
-        assertThat(httpClientResponseException.getStatus().getCode()).as("setup without token is rejected").isEqualTo(HttpStatus.UNAUTHORIZED.getCode());
+        assertThat(httpClientResponseException.getStatus().getCode()).as("setup without token is rejected").isEqualTo(HttpStatus.FORBIDDEN.getCode());
 
         httpClientResponseException = assertThrows(
             HttpClientResponseException.class, () -> client.toBlocking()
                 .exchange(HttpRequest.POST("/api/v1/basicAuth", setupCredentials).header(BasicAuthService.SETUP_TOKEN_HEADER, "wrong-token"))
         );
-        assertThat(httpClientResponseException.getStatus().getCode()).as("setup with wrong token is rejected").isEqualTo(HttpStatus.UNAUTHORIZED.getCode());
+        assertThat(httpClientResponseException.getStatus().getCode()).as("setup with wrong token is rejected").isEqualTo(HttpStatus.FORBIDDEN.getCode());
+        assertThat(httpClientResponseException.getResponse().getHeaders().get("WWW-Authenticate")).as("no browser basic auth prompt during setup").isNull();
         assertThat(basicAuthService.isBasicAuthInitialized()).isFalse();
 
         String setupToken = basicAuthService.getOrCreateSetupToken();
