@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
@@ -153,6 +154,11 @@ public class Docker extends TaskRunner<Docker.DockerTaskRunnerDetailResult> {
 
     private static final String LEGACY_VOLUME_ENABLED_CONFIG = "kestra.tasks.scripts.docker.volume-enabled";
     private static final String VOLUME_ENABLED_CONFIG = "volume-enabled";
+    static final String PRIVILEGED_ENABLED_CONFIG = "privileged-enabled";
+    static final String DEVICE_REQUESTS_ENABLED_CONFIG = "device-requests-enabled";
+    static final String ALLOWED_NETWORK_MODES_CONFIG = "allowed-network-modes";
+    static final Set<String> DEFAULT_ALLOWED_NETWORK_MODES = Set.of("default", "bridge", "none");
+    private static final String ALLOW_ALL_NETWORK_MODES = "*";
     private static final List<String> DOCKER_SOCKET_ERROR_MESSAGES = List.of(
         "docker.sock",
         "no such file or directory",
@@ -203,7 +209,24 @@ public class Docker extends TaskRunner<Docker.DockerTaskRunnerDetailResult> {
     protected List<String> extraHosts;
 
     @Schema(
-        title = "Docker network mode to use e.g. `host`, `none`, etc."
+        title = "Docker network mode to use e.g. `host`, `none`, etc.",
+        description = """
+            Only the `default`, `bridge` and `none` network modes are allowed by default for security reasons.
+            To use another network mode (e.g. `host`, `container:<name|id>` or a user-defined network),
+            add it to the `allowed-network-modes` list in the [plugin configuration](https://kestra.io/docs/configuration-guide/plugins).
+            Use `*` to allow any network mode.
+
+            Here is how you can add that setting to your kestra configuration:
+            ```yaml
+            kestra:
+              plugins:
+                configurations:
+                  - type: io.kestra.plugin.scripts.runner.docker.Docker
+                    values:
+                      allowed-network-modes:
+                        - bridge
+                        - host
+            ```"""
     )
     @PluginProperty(dynamic = true)
     protected String networkMode;
@@ -251,7 +274,21 @@ public class Docker extends TaskRunner<Docker.DockerTaskRunnerDetailResult> {
     protected Property<PullPolicy> pullPolicy = Property.ofValue(PullPolicy.IF_NOT_PRESENT);
 
     @Schema(
-        title = "A list of device requests to be sent to device drivers."
+        title = "A list of device requests to be sent to device drivers.",
+        description = """
+            Device requests are disabled by default for security reasons — if you are sure you want to use them,
+            enable that feature in the [plugin configuration](https://kestra.io/docs/configuration-guide/plugins)
+            by setting `device-requests-enabled` to `true`.
+
+            Here is how you can add that setting to your kestra configuration:
+            ```yaml
+            kestra:
+              plugins:
+                configurations:
+                  - type: io.kestra.plugin.scripts.runner.docker.Docker
+                    values:
+                      device-requests-enabled: true
+            ```"""
     )
     @PluginProperty
     protected List<DeviceRequest> deviceRequests;
@@ -283,7 +320,21 @@ public class Docker extends TaskRunner<Docker.DockerTaskRunnerDetailResult> {
     private String shmSize;
 
     @Schema(
-        title = "Give extended privileges to this container."
+        title = "Give extended privileges to this container.",
+        description = """
+            Privileged containers are disabled by default for security reasons — if you are sure you want to use them,
+            enable that feature in the [plugin configuration](https://kestra.io/docs/configuration-guide/plugins)
+            by setting `privileged-enabled` to `true`.
+
+            Here is how you can add that setting to your kestra configuration:
+            ```yaml
+            kestra:
+              plugins:
+                configurations:
+                  - type: io.kestra.plugin.scripts.runner.docker.Docker
+                    values:
+                      privileged-enabled: true
+            ```"""
     )
     private Property<Boolean> privileged;
 
@@ -808,6 +859,10 @@ public class Docker extends TaskRunner<Docker.DockerTaskRunnerDetailResult> {
         }
         boolean volumesEnabled = volumeEnabledConfig.orElse(Boolean.FALSE);
 
+        Boolean privileged = this.getPrivileged() != null ? runContext.render(this.getPrivileged()).as(Boolean.class).orElseThrow() : null;
+        String networkMode = this.getNetworkMode() != null ? runContext.render(this.getNetworkMode(), additionalVars) : null;
+        checkHostConfigAllowed(runContext, privileged, networkMode, !ListUtils.isEmpty(this.getDeviceRequests()));
+
         Path workingDirectory = taskCommands.getWorkingDirectory();
         String image = runContext.render(this.image, additionalVars);
 
@@ -866,7 +921,7 @@ public class Docker extends TaskRunner<Docker.DockerTaskRunnerDetailResult> {
             hostConfig.withBinds(binds);
         }
 
-        if (this.getDeviceRequests() != null) {
+        if (!ListUtils.isEmpty(this.getDeviceRequests())) {
             hostConfig.withDeviceRequests(
                 this
                     .getDeviceRequests()
@@ -920,12 +975,12 @@ public class Docker extends TaskRunner<Docker.DockerTaskRunnerDetailResult> {
             hostConfig.withShmSize(convertBytes(runContext.render(this.getShmSize())));
         }
 
-        if (this.getPrivileged() != null) {
-            hostConfig.withPrivileged(runContext.render(this.getPrivileged()).as(Boolean.class).orElseThrow());
+        if (privileged != null) {
+            hostConfig.withPrivileged(privileged);
         }
 
-        if (this.getNetworkMode() != null) {
-            hostConfig.withNetworkMode(runContext.render(this.getNetworkMode(), additionalVars));
+        if (networkMode != null) {
+            hostConfig.withNetworkMode(networkMode);
         }
 
         if (this.getPortBindings() != null) {
@@ -942,6 +997,55 @@ public class Docker extends TaskRunner<Docker.DockerTaskRunnerDetailResult> {
             .withCmd(runContext.render(taskCommands.getCommands()).asList(String.class))
             .withAttachStderr(true)
             .withAttachStdout(true);
+    }
+
+    static void checkHostConfigAllowed(RunContext runContext, Boolean privileged, String networkMode, boolean hasDeviceRequests) {
+        if (Boolean.TRUE.equals(privileged) && !booleanPluginConfiguration(runContext, PRIVILEGED_ENABLED_CONFIG)) {
+            throw new IllegalArgumentException(
+                "Privileged containers are disabled; set the `" + PRIVILEGED_ENABLED_CONFIG + "` plugin configuration to `true` to allow the `privileged` property"
+            );
+        }
+
+        if (hasDeviceRequests && !booleanPluginConfiguration(runContext, DEVICE_REQUESTS_ENABLED_CONFIG)) {
+            throw new IllegalArgumentException(
+                "Device requests are disabled; set the `" + DEVICE_REQUESTS_ENABLED_CONFIG + "` plugin configuration to `true` to allow the `deviceRequests` property"
+            );
+        }
+
+        if (networkMode != null && !networkMode.isEmpty()) {
+            Set<String> allowedNetworkModes = allowedNetworkModes(runContext);
+            if (!allowedNetworkModes.contains(ALLOW_ALL_NETWORK_MODES) && !allowedNetworkModes.contains(networkMode)) {
+                throw new IllegalArgumentException(
+                    "Network mode '" + networkMode + "' is not allowed; allowed network modes are " + new TreeSet<>(allowedNetworkModes) +
+                        ", add it to the `" + ALLOWED_NETWORK_MODES_CONFIG + "` plugin configuration to allow it"
+                );
+            }
+        }
+    }
+
+    private static boolean booleanPluginConfiguration(RunContext runContext, String name) {
+        return runContext.<Object> pluginConfiguration(name)
+            .map(value -> value instanceof Boolean bool ? bool : Boolean.parseBoolean(value.toString().trim()))
+            .orElse(Boolean.FALSE);
+    }
+
+    private static Set<String> allowedNetworkModes(RunContext runContext) {
+        return runContext.<Object> pluginConfiguration(ALLOWED_NETWORK_MODES_CONFIG)
+            .map(value ->
+            {
+                Collection<?> values = value instanceof Collection<?> collection ? collection
+                    : value instanceof Map<?, ?> map ? map.values()
+                        : Arrays.asList(value.toString().split(","));
+                Set<String> modes = new HashSet<>();
+                values.forEach(mode ->
+                {
+                    if (mode != null && !mode.toString().isBlank()) {
+                        modes.add(mode.toString().trim());
+                    }
+                });
+                return modes;
+            })
+            .orElse(DEFAULT_ALLOWED_NETWORK_MODES);
     }
 
     private static Long convertBytes(String bytes) {
