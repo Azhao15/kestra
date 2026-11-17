@@ -1,35 +1,45 @@
 import MarkdownIt from "markdown-it";
 
+export const LINK_TAG_ATTRIBUTES = ["execution", "namespace", "flowId"] as const;
+
+const LINK_TAG_REGEX = /^\[\[link(\s[^\]]*)?\]\]/;
+const ATTRIBUTE_REGEX = /([A-Za-z]+)="([^"]*)"/g;
+
 export function linkTag(md: MarkdownIt) {
-    const linkTagRegex = /\[\[link(\s+(.*?))?\]\]/g;
-
     md.inline.ruler.after("emphasis", "link_custom", (state, silent) => {
-        if (silent) return false;
+        if (state.src.charCodeAt(state.pos) !== 0x5B /* [ */) return false;
 
-        // Check if the current position is a link tag
-        const match = state.src.match(linkTagRegex);
+        const match = state.src.slice(state.pos).match(LINK_TAG_REGEX);
         if (!match) return false;
 
-        // Get the attributes, they must have the following format: key="value"
-        const attrs = match[0].match(/\S+="(\S)+"/g)
-            ?.map(attr => attr.split("="))
-            .map(([name, value]): [string, string] => [name, value.replace(/"/g, "")]);
+        // Only keep the known attributes, they must have the following format: key="value"
+        const attrs = new Map<string, string>();
+        for (const [, name, value] of (match[1] ?? "").matchAll(ATTRIBUTE_REGEX)) {
+            if ((LINK_TAG_ATTRIBUTES as readonly string[]).includes(name) && !attrs.has(name)) {
+                attrs.set(name, value);
+            }
+        }
 
-        if (!attrs) return false;
+        if (!LINK_TAG_ATTRIBUTES.every(name => attrs.has(name))) return false;
 
-        const token = state.push("link_custom_open", "link", 1);
-        token.markup = "[[link]]";
-        token.attrs = attrs;
-        state.push("link_custom_close", "link_custom", -1);
+        if (!silent) {
+            const token = state.push("link_custom_open", "link", 1);
+            token.markup = "[[link]]";
+            token.attrs = LINK_TAG_ATTRIBUTES.map((name): [string, string] => [name, attrs.get(name)!]);
+            state.push("link_custom_close", "link_custom", -1);
+        }
 
-        state.pos = state.pos + match[0].length;
+        state.pos += match[0].length;
 
         return true;
     });
 
     md.renderer.rules.link_custom_open = (tokens, idx) => {
         const token = tokens[idx];
-        const attrs = token.attrs ? token.attrs.map(([name, value]) => `${name}="${value}"`).join("") : "";
+        const attrs = (token.attrs ?? [])
+            .filter(([name]) => (LINK_TAG_ATTRIBUTES as readonly string[]).includes(name))
+            .map(([name, value]) => `${name}="${md.utils.escapeHtml(value)}"`)
+            .join(" ");
 
         return `<router-md ${attrs}>`;
     };
