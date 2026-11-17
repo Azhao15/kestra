@@ -78,19 +78,30 @@
         value?: number;
     }
 
+    const ALLOWED_AGGREGATIONS = ["sum", "avg", "min", "max", "count"];
+
+    function firstQueryValue(value: unknown): string | undefined {
+        const first = Array.isArray(value) ? value[0] : value;
+        return typeof first === "string" ? first : undefined;
+    }
+
+    const aggregation = computed(() => {
+        const value = firstQueryValue(route.query.aggregation)?.toLowerCase();
+        return value && ALLOWED_AGGREGATIONS.includes(value) ? value : undefined;
+    });
+
+    const metric = computed(() => firstQueryValue(route.query.metric));
+
     const display = computed(() => {
-        return route.query.metric && route.query.aggregation;
+        return metric.value && aggregation.value;
     });
 
     const chartData = computed(() => {
         const aggregations = (flowStore.aggregatedMetrics?.aggregations ?? []) as MetricAggregation[];
         const groupBy = flowStore.aggregatedMetrics?.groupBy;
         
-        const aggregationQuery = route.query.aggregation;
-        const aggregationValue = Array.isArray(aggregationQuery) 
-            ? aggregationQuery[0] 
-            : aggregationQuery;
-        const aggregationLabel = aggregationValue?.toLowerCase() ?? "";
+        const aggregationLabel = aggregation.value ?? "";
+        const metricLabel = metric.value ?? "";
         
         return {
             labels: aggregations.map((e: MetricAggregation) =>
@@ -100,7 +111,7 @@
                 !display.value
                     ? {data: [] as number[], label: "", backgroundColor: ""}
                     : {
-                        label: `${t(aggregationLabel)} ${t("of")} ${route.query.metric}`,
+                        label: `${t(aggregationLabel)} ${t("of")} ${metricLabel}`,
                         backgroundColor: cssVariable("--el-color-success"),
                         borderRadius: 4,
                         data: aggregations.map(
