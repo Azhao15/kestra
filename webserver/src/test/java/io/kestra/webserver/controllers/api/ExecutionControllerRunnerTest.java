@@ -268,8 +268,11 @@ class ExecutionControllerRunnerTest {
         String tenantId = "invalidinputs";
         when(tenantService.resolveTenant()).thenReturn(tenantId);
         MultipartBody.Builder builder = MultipartBody.builder()
-            .addPart("validatedString", "B-failed");
-        inputs.forEach((s, o) -> builder.addPart(s, o instanceof String str ? str : null));
+            .addPart("validatedString", "B-failed")
+            .addPart("files", "file", MediaType.TEXT_PLAIN_TYPE, new File((String) inputs.get("file")));
+        inputs.entrySet().stream()
+            .filter(entry -> !entry.getKey().equals("file"))
+            .forEach(entry -> builder.addPart(entry.getKey(), entry.getValue() instanceof String str ? str : null));
 
         HttpClientResponseException e = assertThrows(
             HttpClientResponseException.class,
@@ -280,6 +283,23 @@ class ExecutionControllerRunnerTest {
 
         assertThat(response).contains("Invalid entity");
         assertThat(response).contains("Invalid value for input `validatedString`");
+    }
+
+    @Test
+    @LoadFlows(value = { "flows/valids/inputs.yaml" }, tenantId = "localpathfileinput")
+    void triggerExecutionWithLocalPathAsFileInputIsRejected() {
+        String tenantId = "localpathfileinput";
+        when(tenantService.resolveTenant()).thenReturn(tenantId);
+        MultipartBody.Builder builder = MultipartBody.builder();
+        inputs.forEach((s, o) -> builder.addPart(s, o instanceof String str ? str : null));
+
+        HttpClientResponseException e = assertThrows(
+            HttpClientResponseException.class,
+            () -> triggerExecutionExecution(tenantId, TESTS_FLOW_NS, "inputs", builder.build(), false)
+        );
+
+        assertThat(e.getStatus().getCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY.getCode());
+        assertThat(e.getResponse().getBody(String.class).orElseThrow()).contains("Invalid FILE value for 'file'");
     }
 
     @Test
@@ -411,7 +431,7 @@ class ExecutionControllerRunnerTest {
         assertThat(resultMap.get("type")).isEqualTo(EncryptedString.TYPE);
         assertThat(resultMap.get("value")).isNotNull();
 
-        execution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        execution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs));
 
         result = this.evalTaskRunExpression(execution, "{{inputs.secret}}", 0);
         try {
@@ -468,7 +488,7 @@ class ExecutionControllerRunnerTest {
         final String referenceTaskId = "unknownTaskId";
 
         // Run execution until it ends
-        Execution parentExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution parentExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs));
 
         HttpClientResponseException e = assertThrows(
             HttpClientResponseException.class, () -> client.toBlocking().retrieve(
@@ -491,7 +511,7 @@ class ExecutionControllerRunnerTest {
         final String flowId = "restart_with_inputs";
 
         // Run execution until it ends
-        Execution parentExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution parentExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs));
 
         HttpClientResponseException e = assertThrows(
             HttpClientResponseException.class, () -> client.toBlocking().retrieve(
@@ -515,7 +535,7 @@ class ExecutionControllerRunnerTest {
         final String referenceTaskId = "instant";
 
         // Run execution until it ends
-        Execution parentExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution parentExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, flowId, null, (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs));
 
         Optional<Flow> flow = flowRepositoryInterface.findById(tenantId, TESTS_FLOW_NS, flowId);
 
@@ -571,7 +591,7 @@ class ExecutionControllerRunnerTest {
         // Run execution until it ends
         Execution parentExecution = runnerUtils.runOne(
             TENANT_ID, TESTS_FLOW_NS, flowId, null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, Map.of("condition", "fail"))
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, Map.of("condition", "fail"))
         );
 
         assertThat(parentExecution.getState().getCurrent()).isEqualTo(Type.FAILED);
@@ -624,7 +644,7 @@ class ExecutionControllerRunnerTest {
         // Run execution until it ends
         Execution parentExecution = runnerUtils.runOne(
             TENANT_ID, TESTS_FLOW_NS, flowId, null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, Map.of("condition", "fail"))
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, Map.of("condition", "fail"))
         );
 
         assertThat(parentExecution.getState().getCurrent()).isEqualTo(Type.FAILED);
@@ -681,7 +701,7 @@ class ExecutionControllerRunnerTest {
         // Run execution until it ends
         Execution parentExecution = runnerUtils.runOne(
             TENANT_ID, TESTS_FLOW_NS, flowId, null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs)
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs)
         );
 
         Optional<Flow> flow = flowRepositoryInterface.findById(TENANT_ID, TESTS_FLOW_NS, flowId);
@@ -845,7 +865,7 @@ class ExecutionControllerRunnerTest {
     void downloadInternalStorageFileFromExecution() throws TimeoutException, QueueException {
         String tenantId = "downloadinternalstoragefilefromexecution";
         when(tenantService.resolveTenant()).thenReturn(tenantId);
-        Execution execution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution execution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs));
         assertThat(execution.getTaskRunList()).hasSize(16);
 
         String path = (String) execution.getInputs().get("file");
@@ -889,7 +909,7 @@ class ExecutionControllerRunnerTest {
     void previewInternalStorageFileFromExecution() throws TimeoutException, QueueException {
         String tenantId = "previewinternalstoragefilefromexecution";
         when(tenantService.resolveTenant()).thenReturn(tenantId);
-        Execution defaultExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+        Execution defaultExecution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs));
         assertThat(defaultExecution.getTaskRunList()).hasSize(16);
 
         String defaultPath = (String) defaultExecution.getInputs().get("file");
@@ -915,7 +935,8 @@ class ExecutionControllerRunnerTest {
             .put("yaml1", "{}")
             .build();
 
-        Execution latin1Execution = runnerUtils.runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, latin1FileInputs));
+        Execution latin1Execution = runnerUtils
+            .runOne(tenantId, TESTS_FLOW_NS, "inputs", null, (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, latin1FileInputs));
         assertThat(latin1Execution.getTaskRunList()).hasSize(16);
 
         String latin1Path = (String) latin1Execution.getInputs().get("file");
@@ -952,7 +973,7 @@ class ExecutionControllerRunnerTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, newInputs)
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, newInputs)
         );
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.SUCCESS);
 
@@ -995,7 +1016,7 @@ class ExecutionControllerRunnerTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, newInputs)
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, newInputs)
         );
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.SUCCESS);
 

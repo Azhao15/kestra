@@ -73,6 +73,6 @@ public class NoEncryptionConfiguredTest implements TestPropertyProvider {
             .flowId(flow.getId())
             .build();
 
-        assertThrows(InputOutputValidationException.class, () -> flowIO.readExecutionInputs(flow, execution, InputsTest.inputs));
+        assertThrows(InputOutputValidationException.class, () -> flowIO.readExecutionInputsWithLocalFiles(flow, execution, InputsTest.inputs));
     }
 }

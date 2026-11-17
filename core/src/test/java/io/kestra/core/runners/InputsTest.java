@@ -37,6 +37,7 @@ import io.kestra.core.storages.NamespaceFactory;
 import io.kestra.core.storages.StorageInterface;
 import io.kestra.core.utils.TestsUtils;
 
+import io.micronaut.context.annotation.Property;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import reactor.core.publisher.Flux;
@@ -47,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @KestraTest(startRunner = true)
+@Property(name = LocalPath.ALLOWED_PATHS_CONFIG, value = "/tmp")
 public class InputsTest {
     @Inject
     @Named(QueueFactoryInterface.WORKERTASKLOG_NAMED)
@@ -121,7 +123,7 @@ public class InputsTest {
     }
 
     private Map<String, Object> typedInputs(Map<String, Object> map, Flow flow) {
-        return flowIO.readExecutionInputs(
+        return flowIO.readExecutionInputsWithLocalFiles(
             flow,
             Execution.builder()
                 .id("test")
@@ -221,7 +223,7 @@ public class InputsTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs)
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs)
         );
 
         assertThat(execution.getTaskRunList()).hasSize(16);
@@ -397,7 +399,7 @@ public class InputsTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, map)
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, map)
         );
 
         assertThat(execution.getTaskRunList()).hasSize(16);
@@ -451,7 +453,7 @@ public class InputsTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, newInputs)
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, newInputs)
         );
 
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.SUCCESS);
@@ -470,7 +472,7 @@ public class InputsTest {
             "io.kestra.tests",
             "inputs",
             null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs)
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs)
         );
 
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.SUCCESS);
@@ -483,7 +485,7 @@ public class InputsTest {
         InputOutputValidationException ex = assertThrows(
             InputOutputValidationException.class, () -> runnerUtils.runOne(
                 MAIN_TENANT, "io.kestra.tests", "inputs-with-multiple-constraint-violations", null,
-                (f, e) -> flowIO.readExecutionInputs(f, e, Map.of("multi", List.of("F", "H")))
+                (f, e) -> flowIO.readExecutionInputsWithLocalFiles(f, e, Map.of("multi", List.of("F", "H")))
             )
         );
 
@@ -501,7 +503,7 @@ public class InputsTest {
     void secretInputValidation() {
         Flow flow = flowRepository.findById(MAIN_TENANT, "io.kestra.tests", "secret-input-validation").get();
         InputOutputValidationException ex = assertThrows(
-            InputOutputValidationException.class, () -> flowIO.readExecutionInputs(
+            InputOutputValidationException.class, () -> flowIO.readExecutionInputsWithLocalFiles(
                 flow,
                 Execution.builder()
                     .id("test")
@@ -515,7 +517,7 @@ public class InputsTest {
         );
         assertThat(ex.getMessage()).isEqualTo("Invalid value for input `input1`. Cause: input1: it must match the pattern `(?=.{8,})(?=.*[A-Z])(?=.*[0-9]).*`");
 
-        Map<String, Object> resolvedInputs = flowIO.readExecutionInputs(
+        Map<String, Object> resolvedInputs = flowIO.readExecutionInputsWithLocalFiles(
             flow,
             Execution.builder()
                 .id("test")
@@ -529,6 +531,37 @@ public class InputsTest {
         EncryptedString encryptedString = (EncryptedString) resolvedInputs.get("input1");
         assertThat(encryptedString).isNotNull();
 
+    }
+
+    @Test
+    @LoadFlows(value = { "flows/valids/inputs.yaml" }, tenantId = "tenant_local_path_file")
+    void fileInputWithLocalPathIsRejected() {
+        Flow flow = flowRepository.findById("tenant_local_path_file", "io.kestra.tests", "inputs").get();
+        Execution execution = Execution.newExecution(flow, List.of());
+        HashMap<String, Object> newInputs = new HashMap<>(InputsTest.inputs);
+
+        InputOutputValidationException e = assertThrows(
+            InputOutputValidationException.class,
+            () -> flowIO.readExecutionInputs(flow, execution, newInputs)
+        );
+        assertThat(e.getMessage()).contains("Invalid FILE value for 'file'");
+        assertThat(storageInterface.exists(flow.getTenantId(), flow.getNamespace(), URI.create("kestra:///io/kestra/tests/inputs/executions/" + execution.getId() + "/inputs/file/application-test.yml")))
+            .isFalse();
+    }
+
+    @Test
+    @LoadFlows(value = { "flows/valids/inputs.yaml" }, tenantId = "tenant_file_uri_not_allowed")
+    void fileInputWithNotAllowedFileUriIsRejected() {
+        Flow flow = flowRepository.findById("tenant_file_uri_not_allowed", "io.kestra.tests", "inputs").get();
+        Execution execution = Execution.newExecution(flow, List.of());
+        HashMap<String, Object> newInputs = new HashMap<>(InputsTest.inputs);
+        newInputs.put("file", new File((String) InputsTest.inputs.get("file")).toURI().toString());
+
+        InputOutputValidationException e = assertThrows(
+            InputOutputValidationException.class,
+            () -> flowIO.readExecutionInputs(flow, execution, newInputs)
+        );
+        assertThat(e.getMessage()).contains("is not authorized");
     }
 
     private URI createFile() throws IOException {

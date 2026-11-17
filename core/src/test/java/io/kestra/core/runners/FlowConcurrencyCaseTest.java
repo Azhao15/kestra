@@ -149,7 +149,7 @@ public class FlowConcurrencyCaseTest {
         Map<String, Object> inputs = Map.of("file", file.toString(), "batch", 4);
         Execution forEachItem = runnerUtils.runOneUntilRunning(
             tenantId, NAMESPACE, "flow-concurrency-for-each-item", null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs), Duration.ofSeconds(5)
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs), Duration.ofSeconds(5)
         );
         assertThat(forEachItem.getState().getCurrent()).isEqualTo(Type.RUNNING);
 
