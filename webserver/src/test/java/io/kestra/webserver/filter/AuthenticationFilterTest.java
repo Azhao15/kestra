@@ -1,5 +1,7 @@
 package io.kestra.webserver.filter;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import io.kestra.core.junit.annotations.KestraTest;
@@ -12,6 +14,8 @@ import io.kestra.webserver.services.BasicAuthService;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
+import io.micronaut.http.MediaType;
+import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
@@ -126,6 +130,51 @@ class AuthenticationFilterTest {
         var response = client.toBlocking()
             .exchange(HttpRequest.GET("/api/v1/configs").basicAuth("anonymous", "hacker"));
         assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
+    }
+
+    @Test
+    void shouldNotExemptUserControlledPathsEndingWithConfigs() {
+        String namespace = "io.kestra." + IdUtils.create().toLowerCase();
+        String kvPath = "/api/v1/main/namespaces/" + namespace + "/kv/configs";
+
+        for (MutableHttpRequest<?> request : List.<MutableHttpRequest<?>> of(
+            HttpRequest.GET(kvPath),
+            HttpRequest.PUT(kvPath, "\"hacked\"").contentType(MediaType.TEXT_PLAIN),
+            HttpRequest.DELETE(kvPath),
+            HttpRequest.GET("/api/v1/main/flows/" + namespace + "/configs"),
+            HttpRequest.GET("/api/v1/configs/configs")
+        )) {
+            HttpClientResponseException e = assertThrows(
+                HttpClientResponseException.class,
+                () -> client.toBlocking().exchange(request.basicAuth("anonymous", "hacker"))
+            );
+            assertThat(e.getStatus().getCode()).as(request.getMethodName() + " " + request.getPath()).isEqualTo(HttpStatus.UNAUTHORIZED.getCode());
+        }
+    }
+
+    @Test
+    void shouldNotExemptUserControlledPathsEndingWithBasicAuthBeforeSetup() {
+        TestAuthFilter.ENABLED = false;
+        try {
+            settingRepository.delete(Setting.builder().key(BASIC_AUTH_SETTINGS_KEY).build());
+            assertThat(basicAuthService.isBasicAuthInitialized()).isFalse();
+
+            String kvPath = "/api/v1/main/namespaces/io.kestra." + IdUtils.create().toLowerCase() + "/kv/basicAuth";
+            for (MutableHttpRequest<?> request : List.<MutableHttpRequest<?>> of(
+                HttpRequest.GET(kvPath),
+                HttpRequest.PUT(kvPath, "\"hacked\"").contentType(MediaType.TEXT_PLAIN),
+                HttpRequest.GET(kvPath + "ValidationErrors")
+            )) {
+                HttpClientResponseException e = assertThrows(
+                    HttpClientResponseException.class,
+                    () -> client.toBlocking().exchange(request)
+                );
+                assertThat(e.getStatus().getCode()).as(request.getMethodName() + " " + request.getPath()).isEqualTo(HttpStatus.UNAUTHORIZED.getCode());
+            }
+        } finally {
+            basicAuthService.init();
+            TestAuthFilter.ENABLED = true;
+        }
     }
 
     @Test
