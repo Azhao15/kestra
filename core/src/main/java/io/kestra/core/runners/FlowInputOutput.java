@@ -32,6 +32,7 @@ import io.kestra.core.models.property.PropertyContext;
 import io.kestra.core.models.property.URIFetcher;
 import io.kestra.core.models.tasks.common.EncryptedString;
 import io.kestra.core.serializers.JacksonMapper;
+import io.kestra.core.storages.Namespace;
 import io.kestra.core.storages.StorageContext;
 import io.kestra.core.storages.StorageInterface;
 import io.kestra.core.utils.ListUtils;
@@ -62,14 +63,17 @@ public class FlowInputOutput {
     private final StorageInterface storageInterface;
     private final Optional<String> secretKey;
     private final RunContextFactory runContextFactory;
+    private final LocalPathFactory localPathFactory;
 
     @Inject
     public FlowInputOutput(
         StorageInterface storageInterface,
         RunContextFactory runContextFactory,
+        LocalPathFactory localPathFactory,
         @Nullable @Value("${kestra.encryption.secret-key}") String secretKey) {
         this.storageInterface = storageInterface;
         this.runContextFactory = runContextFactory;
+        this.localPathFactory = localPathFactory;
         this.secretKey = Optional.ofNullable(secretKey);
     }
 
@@ -195,6 +199,31 @@ public class FlowInputOutput {
         final Execution execution,
         final Map<String, ?> data) {
         return readExecutionInputs(flow.getInputs(), flow, execution, data);
+    }
+
+    /**
+     * Same as {@link #readExecutionInputs(FlowInterface, Execution, Map)} but values of top-level {@code FILE} inputs
+     * that are plain local paths are first copied into the execution's internal storage.
+     * <p>
+     * WARNING: this reads arbitrary files from the local filesystem. It must only be used by trusted local callers
+     * (e.g. the CLI {@code flow test} command), never with data coming from an HTTP request or a webhook.
+     */
+    public Map<String, Object> readExecutionInputsWithLocalFiles(
+        final FlowInterface flow,
+        final Execution execution,
+        final Map<String, ?> data) {
+        Map<String, Object> resolved = new HashMap<>(data);
+        for (Input<?> input : ListUtils.emptyOnNull(flow.getInputs())) {
+            if (input.getType() == Type.FILE && resolved.get(input.getId()) instanceof String path && !URIFetcher.supports(path)) {
+                File file = new File(path);
+                try {
+                    resolved.put(input.getId(), storageInterface.from(execution, input.getId(), file.getName(), file).toString());
+                } catch (IOException e) {
+                    throw InputOutputValidationException.of("Unable to read local file '" + path + "' for input '" + input.getId() + "': " + e.getMessage(), input);
+                }
+            }
+        }
+        return readExecutionInputs(flow, execution, resolved);
     }
 
     private Map<String, Object> readExecutionInputs(
@@ -489,13 +518,19 @@ public class FlowInputOutput {
                 case TIME -> current instanceof LocalTime ? current : LocalTime.parse(current.toString());
                 case DURATION -> current instanceof Duration ? current : Duration.parse(current.toString());
                 case FILE -> {
-                    URI uri = URI.create(current.toString().replace(File.separator, "/"));
+                    URI uri = URI.create(current.toString());
 
-                    if (URIFetcher.supports(uri)) {
-                        yield uri;
-                    } else {
-                        yield storageInterface.from(execution, id, current.toString().substring(current.toString().lastIndexOf("/") + 1), new File(current.toString()));
+                    if (!URIFetcher.supports(uri)) {
+                        throw new IllegalArgumentException(
+                            "Invalid FILE value for '" + id + "': only uploaded files or '" + StorageContext.KESTRA_SCHEME + "://', '"
+                                + Namespace.NAMESPACE_FILE_SCHEME + "://' and '" + LocalPath.FILE_PROTOCOL + "' URIs are allowed"
+                        );
                     }
+                    if (LocalPath.FILE_SCHEME.equals(uri.getScheme())) {
+                        // enforce the local files allow list before accepting a local file reference
+                        localPathFactory.createLocalPath().exists(uri);
+                    }
+                    yield uri;
                 }
                 case JSON -> (current instanceof Map || current instanceof Collection<?>) ? current : JacksonMapper.toObject(current.toString());
                 case YAML -> (current instanceof Map || current instanceof Collection<?>) ? current : YAML_MAPPER.readValue(current.toString(), JacksonMapper.OBJECT_TYPE_REFERENCE);

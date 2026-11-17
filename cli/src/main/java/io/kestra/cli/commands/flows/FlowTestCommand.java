@@ -104,7 +104,7 @@ public class FlowTestCommand extends AbstractApiCommand {
                 throw new IllegalArgumentException("Too many flow found, need 1, found " + all.size());
             }
 
-            Execution execution = Execution.newExecution(all.getFirst(), (f, e) -> flowInputOutput.readExecutionInputs(f, e, inputs), Collections.emptyList(), Optional.empty());
+            Execution execution = Execution.newExecution(all.getFirst(), (f, e) -> flowInputOutput.readExecutionInputsWithLocalFiles(f, e, inputs), Collections.emptyList(), Optional.empty());
             executionQueue.emit(execution);
             Execution terminated = await().atMost(Duration.ofHours(1)).until(
                 () -> executionRepository.findById(tenantService.getTenantId(tenantId), execution.getId()).orElse(null),

@@ -64,7 +64,7 @@ public class ForEachItemCaseTest {
         Map<String, Object> inputs = Map.of("file", file.toString(), "batch", 4);
         Execution execution = runnerUtils.runOne(
             tenantId, TEST_NAMESPACE, "for-each-item", null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs),
             Duration.ofSeconds(30)
         );
 
@@ -109,7 +109,7 @@ public class ForEachItemCaseTest {
         Map<String, Object> inputs = Map.of("file", file.toString(), "batch", 4);
         Execution execution = runnerUtils.runOne(
             tenantId, TEST_NAMESPACE, "for-each-item", null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs),
             Duration.ofSeconds(30)
         );
 
@@ -126,7 +126,7 @@ public class ForEachItemCaseTest {
         Map<String, Object> inputs = Map.of("file", file.toString());
         Execution execution = runnerUtils.runOne(
             tenantId, TEST_NAMESPACE, "for-each-item-no-wait", null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs),
             Duration.ofSeconds(30)
         );
 
@@ -168,7 +168,7 @@ public class ForEachItemCaseTest {
         Map<String, Object> inputs = Map.of("file", file.toString());
         Execution execution = runnerUtils.runOne(
             tenantId, TEST_NAMESPACE, "for-each-item-failed", null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs),
             Duration.ofSeconds(60)
         );
 
@@ -202,7 +202,7 @@ public class ForEachItemCaseTest {
         Map<String, Object> inputs = Map.of("file", file.toString());
         Execution execution = runnerUtils.runOne(
             tenantId, TEST_NAMESPACE, "for-each-item-outputs", null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs),
             Duration.ofSeconds(30)
         );
 
@@ -246,7 +246,7 @@ public class ForEachItemCaseTest {
         Map<String, Object> inputs = Map.of("file", file.toString(), "batch", 20);
         final Execution failedExecution = runnerUtils.runOne(
             tenantId, TEST_NAMESPACE, "restart-for-each-item", null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs),
             Duration.ofSeconds(30)
         );
         assertThat(failedExecution.getTaskRunList()).hasSize(3);
@@ -271,7 +271,7 @@ public class ForEachItemCaseTest {
         Map<String, Object> inputs = Map.of("file", file.toString(), "batch", 4);
         Execution execution = runnerUtils.runOne(
             tenantId, TEST_NAMESPACE, "for-each-item-in-if", null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs),
             Duration.ofSeconds(30)
         );
 
@@ -305,7 +305,7 @@ public class ForEachItemCaseTest {
         Map<String, Object> inputs = Map.of("file", file.toString(), "batch", 4);
         Execution execution = runnerUtils.runOne(
             tenantId, TEST_NAMESPACE, "for-each-item-after-execution", null,
-            (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs),
+            (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs),
             Duration.ofSeconds(30)
         );
 

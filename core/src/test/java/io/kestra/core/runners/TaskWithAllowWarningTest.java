@@ -65,7 +65,7 @@ public class TaskWithAllowWarningTest {
         URI file = storageUpload();
         Map<String, Object> inputs = Map.of("file", file.toString());
         Execution execution = runnerUtils
-            .runOne(MAIN_TENANT, "io.kestra.tests", "task-allow-warning-executable-foreachitem", null, (flow, execution1) -> flowIO.readExecutionInputs(flow, execution1, inputs));
+            .runOne(MAIN_TENANT, "io.kestra.tests", "task-allow-warning-executable-foreachitem", null, (flow, execution1) -> flowIO.readExecutionInputsWithLocalFiles(flow, execution1, inputs));
 
         assertThat(execution.getState().getCurrent()).isEqualTo(State.Type.SUCCESS);
         assertThat(execution.getTaskRunList()).hasSize(4);
