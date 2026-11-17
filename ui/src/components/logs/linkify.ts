@@ -36,10 +36,21 @@ export default function linkify(element?: HTMLElement, router?: Router) {
     const namespace = link.getAttribute("namespace");
     const flowId = link.getAttribute("flowId");
 
+    if (!execution || !namespace || !flowId) {
+      link.remove();
+      return;
+    }
+
     const executionRoute = {name: "executions/update", params: {id: execution, namespace: namespace, flowId: flowId}}
-    const executionUrl = router.resolve(executionRoute)
     const flowRoute = {name: "flows/update", params: {namespace: namespace, id: flowId}}
-    const flowUrl = router.resolve(flowRoute)
+    let executionUrl, flowUrl;
+    try {
+      executionUrl = router.resolve(executionRoute)
+      flowUrl = router.resolve(flowRoute)
+    } catch {
+      link.remove();
+      return;
+    }
 
     // we create the anchor nodes
     const anchorNodeExection = document.createElement("a");
