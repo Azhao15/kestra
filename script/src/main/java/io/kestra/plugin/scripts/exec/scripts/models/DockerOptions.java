@@ -66,7 +66,9 @@ public class DockerOptions {
     protected List<String> extraHosts;
 
     @Schema(
-        title = "Docker network mode to use e.g. `host`, `none`, etc."
+        title = "Docker network mode to use e.g. `host`, `none`, etc.",
+        description = "Only the `default`, `bridge` and `none` network modes are allowed by default for security reasons; " +
+            "other network modes must be listed in the `allowed-network-modes` plugin configuration of the `io.kestra.plugin.scripts.runner.docker.Docker` task runner (use `*` to allow any)."
     )
     @PluginProperty(dynamic = true)
     protected String networkMode;
@@ -83,7 +85,9 @@ public class DockerOptions {
     protected Property<PullPolicy> pullPolicy = Property.ofValue(PullPolicy.IF_NOT_PRESENT);
 
     @Schema(
-        title = "A list of device requests to be sent to device drivers."
+        title = "A list of device requests to be sent to device drivers.",
+        description = "Device requests are disabled by default for security reasons; you must enable them by setting the `device-requests-enabled` plugin configuration " +
+            "of the `io.kestra.plugin.scripts.runner.docker.Docker` task runner to `true`."
     )
     @PluginProperty
     protected List<DeviceRequest> deviceRequests;
@@ -115,7 +119,9 @@ public class DockerOptions {
     private String shmSize;
 
     @Schema(
-        title = "Give extended privileges to this container."
+        title = "Give extended privileges to this container.",
+        description = "Privileged containers are disabled by default for security reasons; you must enable them by setting the `privileged-enabled` plugin configuration " +
+            "of the `io.kestra.plugin.scripts.runner.docker.Docker` task runner to `true`."
     )
     private Property<Boolean> privileged;
 

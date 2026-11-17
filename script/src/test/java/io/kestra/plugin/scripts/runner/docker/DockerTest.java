@@ -9,14 +9,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import io.kestra.core.queues.QueueFactoryInterface;
-import io.kestra.core.queues.QueueInterface;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.MatcherAssert;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -27,12 +23,16 @@ import io.kestra.core.models.property.Property;
 import io.kestra.core.models.tasks.runners.AbstractTaskRunnerTest;
 import io.kestra.core.models.tasks.runners.ScriptService;
 import io.kestra.core.models.tasks.runners.TaskRunner;
+import io.kestra.core.queues.QueueFactoryInterface;
+import io.kestra.core.queues.QueueInterface;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.utils.Await;
 import io.kestra.core.utils.IdUtils;
 import io.kestra.core.utils.TestsUtils;
 import io.kestra.plugin.scripts.exec.scripts.runners.CommandsWrapper;
 
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import reactor.core.publisher.Flux;
 
 import static io.kestra.core.utils.Rethrow.throwRunnable;
@@ -117,6 +117,50 @@ class DockerTest extends AbstractTaskRunnerTest {
         assertThat(result.getExitCode()).isZero();
         MatcherAssert.assertThat((String) result.getLogConsumer().getOutputs().get("cpuLimit"), containsString("150000"));
         assertThat(result.getLogConsumer().getStdOutCount()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldRejectPrivilegedAndHostNetworkWithoutPluginConfiguration() {
+        var runContext = runContext(this.runContextFactory);
+        var taskCommands = new CommandsWrapper(runContext).withCommands(
+            Property.ofValue(List.of("/bin/sh", "-c", "echo should-not-run"))
+        );
+
+        var privileged = Docker.builder()
+            .image("rockylinux:9.3-minimal")
+            .privileged(Property.ofValue(true))
+            .build();
+        Assertions.assertThatThrownBy(() -> privileged.run(runContext, taskCommands, Collections.emptyList()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining(Docker.PRIVILEGED_ENABLED_CONFIG);
+
+        var hostNetwork = Docker.builder()
+            .image("rockylinux:9.3-minimal")
+            .networkMode("host")
+            .build();
+        Assertions.assertThatThrownBy(() -> hostNetwork.run(runContext, taskCommands, Collections.emptyList()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining(Docker.ALLOWED_NETWORK_MODES_CONFIG);
+    }
+
+    @Test
+    void shouldAllowPrivilegedAndHostNetworkWhenEnabledInPluginConfiguration() throws Exception {
+        var runContext = Mockito.spy(runContext(this.runContextFactory));
+        Mockito.doReturn(Optional.of(true)).when(runContext).pluginConfiguration(Docker.PRIVILEGED_ENABLED_CONFIG);
+        Mockito.doReturn(Optional.of(List.of("host"))).when(runContext).pluginConfiguration(Docker.ALLOWED_NETWORK_MODES_CONFIG);
+
+        var docker = Docker.builder()
+            .image("rockylinux:9.3-minimal")
+            .privileged(Property.ofValue(true))
+            .networkMode("host")
+            .build();
+        var taskCommands = new CommandsWrapper(runContext).withCommands(
+            Property.ofValue(List.of("/bin/sh", "-c", "echo Hello World!"))
+        );
+
+        var result = docker.run(runContext, taskCommands, Collections.emptyList());
+
+        assertThat(result.getExitCode()).isZero();
     }
 
     public static void callOnKill(TaskRunner<?> taskRunner, Runnable runnable) throws Exception {
