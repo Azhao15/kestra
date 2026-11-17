@@ -3,6 +3,8 @@ package io.kestra.webserver.filter;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.reactivestreams.Publisher;
 
@@ -34,6 +36,9 @@ public class AuthenticationFilter implements HttpServerFilter {
     private static final String PREFIX = "Basic";
     private static final Integer ORDER = ServerFilterPhase.SECURITY.order();
     public static final String BASIC_AUTH_COOKIE_NAME = "BASIC_AUTH";
+    private static final String CONFIGS_PATH = "/api/v1/configs";
+    private static final Set<String> BASIC_AUTH_SETUP_PATHS = Set.of("/api/v1/basicAuthValidationErrors", "/api/v1/basicAuth");
+    private static final Pattern TENANT_BASIC_AUTH_PATH = Pattern.compile("^/api/v1/[^/]+/basicAuth$");
 
     @Inject
     private BasicAuthService basicAuthService;
@@ -50,9 +55,9 @@ public class AuthenticationFilter implements HttpServerFilter {
             .flux()
             .flatMap(basicAuthConfiguration ->
             {
-                boolean isConfigEndpoint = request.getPath().endsWith("/configs")
-                    || ((request.getPath().endsWith("/basicAuth") || request.getPath().endsWith("/basicAuthValidationErrors"))
-                        && !basicAuthService.isBasicAuthInitialized());
+                String path = request.getPath();
+                boolean isConfigEndpoint = CONFIGS_PATH.equals(path)
+                    || (isBasicAuthSetupEndpoint(path) && !basicAuthService.isBasicAuthInitialized());
 
                 boolean isOpenUrl = Optional.ofNullable(basicAuthConfiguration.openUrls())
                     .map(Collection::stream)
@@ -83,6 +88,10 @@ public class AuthenticationFilter implements HttpServerFilter {
 
                 return chain.proceed(request);
             });
+    }
+
+    private static boolean isBasicAuthSetupEndpoint(String path) {
+        return BASIC_AUTH_SETUP_PATHS.contains(path) || TENANT_BASIC_AUTH_PATH.matcher(path).matches();
     }
 
     private Optional<String> fromCookie(HttpRequest<?> request) {
