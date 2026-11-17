@@ -67,7 +67,11 @@ public class LocalStorage implements StorageInterface {
         }
 
         parentTraversalGuard(uri);
-        return Paths.get(basePath.toString(), windowsToUnixPath(uri.getPath()));
+        Path path = Paths.get(basePath.toString(), windowsToUnixPath(uri.getPath()));
+        if (!path.toAbsolutePath().normalize().startsWith(basePath.toAbsolutePath().normalize())) {
+            throw new IllegalArgumentException("File should be accessed with their full path and not using relative '..' path.");
+        }
+        return path;
     }
 
     @Override

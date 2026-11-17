@@ -13,6 +13,7 @@ import io.kestra.core.runners.LocalPath;
 import io.kestra.core.runners.LocalPathFactory;
 import io.kestra.core.services.NamespaceService;
 import io.kestra.core.storages.*;
+import io.kestra.core.utils.FileUtils;
 import io.kestra.core.utils.Slugify;
 
 import io.micronaut.context.annotation.Value;
@@ -116,13 +117,14 @@ abstract class AbstractFileFunction implements Function {
         // Internal storage URI should be: kestra:///$namespace/$flowId/executions/$executionId/tasks/$taskName/$taskRunId/$random.ion or kestra:///$namespace/$flowId/executions/$executionId/trigger/$triggerName/$random.ion
         // Namespace file URI should be: kestra:///$namespace/_files/$random'
         // We check that the file is for the given flow execution
-        if (namespace == null || flowId == null || executionId == null) {
+        if (namespace == null || flowId == null || executionId == null || FileUtils.isParentTraversal(path)) {
             return false;
         }
 
         String executionAuthorizedBasePath = KESTRA_SCHEME + namespace.replace(".", "/") + "/" + Slugify.of(flowId) + "/executions/" + executionId + "/";
         String nsFileAuthorizedBasePath = KESTRA_SCHEME + namespace.replace(".", "/") + "/_files/";
-        return path.toString().startsWith(executionAuthorizedBasePath) || path.toString().startsWith(nsFileAuthorizedBasePath);
+        String normalizedPath = path.normalize().toString();
+        return normalizedPath.startsWith(executionAuthorizedBasePath) || normalizedPath.startsWith(nsFileAuthorizedBasePath);
     }
 
     @SuppressWarnings("unchecked")

@@ -32,7 +32,6 @@ import io.kestra.core.exceptions.IllegalVariableEvaluationException;
 import io.kestra.core.exceptions.InternalException;
 import io.kestra.core.models.Label;
 import io.kestra.core.models.QueryFilter;
-import io.kestra.core.repositories.ExecutionRepositoryInterface.DateFilter;
 import io.kestra.core.models.executions.*;
 import io.kestra.core.models.flows.*;
 import io.kestra.core.models.flows.check.Check;
@@ -49,6 +48,7 @@ import io.kestra.core.queues.QueueException;
 import io.kestra.core.queues.QueueFactoryInterface;
 import io.kestra.core.queues.QueueInterface;
 import io.kestra.core.repositories.ExecutionRepositoryInterface;
+import io.kestra.core.repositories.ExecutionRepositoryInterface.DateFilter;
 import io.kestra.core.repositories.FlowRepositoryInterface;
 import io.kestra.core.runners.*;
 import io.kestra.core.services.*;
@@ -59,6 +59,7 @@ import io.kestra.core.test.flow.TaskFixture;
 import io.kestra.core.topologies.FlowTopologyService;
 import io.kestra.core.trace.propagation.ExecutionTextMapSetter;
 import io.kestra.core.utils.Await;
+import io.kestra.core.utils.FileUtils;
 import io.kestra.core.utils.IdUtils;
 import io.kestra.core.utils.ListUtils;
 import io.kestra.core.utils.Logs;
@@ -896,6 +897,10 @@ public class ExecutionController {
     }
 
     protected <T> HttpResponse<T> validateFile(Execution execution, URI path, String redirect) {
+        if (FileUtils.isParentTraversal(path)) {
+            throw new IllegalArgumentException("File should be accessed with their full path and not using relative '..' path.");
+        }
+
         if (LocalPath.FILE_SCHEME.equals(path.getScheme())) {
             if (!enableLocalFilePreview) {
                 throw new SecurityException("Local file preview is disabled");
