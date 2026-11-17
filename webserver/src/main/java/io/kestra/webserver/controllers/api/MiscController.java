@@ -31,6 +31,7 @@ import io.micronaut.http.HttpResponse;
 import io.micronaut.http.annotation.Body;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
+import io.micronaut.http.annotation.Header;
 import io.micronaut.http.annotation.Post;
 import io.micronaut.scheduling.TaskExecutors;
 import io.micronaut.scheduling.annotation.ExecuteOn;
@@ -179,10 +180,11 @@ public class MiscController {
     @ExecuteOn(TaskExecutors.IO)
     @Operation(tags = { "Misc" }, summary = "Configure basic authentication for the instance.", description = "Sets up basic authentication credentials.")
     public HttpResponse<Void> createBasicAuth(
-        @RequestBody @Body BasicAuthCredentials basicAuthCredentials) {
+        @RequestBody @Body BasicAuthCredentials basicAuthCredentials,
+        @Nullable @Header(BasicAuthService.SETUP_TOKEN_HEADER) String setupToken) {
         basicAuthService
             .orElseThrow(() -> new IllegalStateException("basicAuthService bean is required in OSS"))
-            .save(basicAuthCredentials);
+            .saveFromApi(basicAuthCredentials, setupToken);
 
         return HttpResponse.noContent();
     }

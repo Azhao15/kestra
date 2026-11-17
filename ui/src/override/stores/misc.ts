@@ -42,6 +42,7 @@ export const useMiscStore = defineStore("misc", () => {
     async function addBasicAuth(options: {
         username: string;
         password: string;
+        setupToken?: string;
     }) {
         const email = options.username;
         const analyticsEnabled = configs.value?.isUiAnonymousUsageEnabled === true;
@@ -55,7 +56,7 @@ export const useMiscStore = defineStore("misc", () => {
             uid,
             username: email,
             password: options.password,
-        });
+        }, options.setupToken ? {headers: {"X-Kestra-Setup-Token": options.setupToken}} : undefined);
 
         const apiStore = useApiStore();
 

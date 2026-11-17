@@ -1803,7 +1803,9 @@
         "firstName": "Nome",
         "lastName": "Cognome",
         "password": "Password",
-        "password_requirements": "Almeno 8 caratteri con 1 lettera maiuscola e 1 numero."
+        "password_requirements": "Almeno 8 caratteri con 1 lettera maiuscola e 1 numero.",
+        "setup_token": "Token di configurazione",
+        "setup_token_requirements": "Stampato nei log del server Kestra all'avvio. Dimostra che hai accesso al server."
       },
       "login": "Accedi",
       "logout": "Logout",
@@ -1855,7 +1857,8 @@
         "firstName_required": "Nome richiesto",
         "incorrect_creds": "Nome utente o password non validi. Assicurati che le tue credenziali siano corrette.",
         "lastName_required": "Cognome obbligatorio",
-        "password_invalid": "Password non valida"
+        "password_invalid": "Password non valida",
+        "setup_token_required": "Il token di configurazione è obbligatorio"
       }
     },
     "show": "Mostra",

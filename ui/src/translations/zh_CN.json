@@ -1803,7 +1803,9 @@
         "firstName": "名字",
         "lastName": "姓氏",
         "password": "密码",
-        "password_requirements": "至少8个字符，包含1个大写字母和1个数字。"
+        "password_requirements": "至少8个字符，包含1个大写字母和1个数字。",
+        "setup_token": "设置令牌",
+        "setup_token_requirements": "启动时打印在 Kestra 服务器 log 中。用于证明您有权访问服务器。"
       },
       "login": "登录",
       "logout": "注销",
@@ -1855,7 +1857,8 @@
         "firstName_required": "名字为必填项",
         "incorrect_creds": "用户名或密码无效。请确保您的凭据正确。",
         "lastName_required": "姓氏为必填项",
-        "password_invalid": "密码无效"
+        "password_invalid": "密码无效",
+        "setup_token_required": "设置令牌为必填项"
       }
     },
     "show": "显示",

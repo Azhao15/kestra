@@ -69,6 +69,19 @@
                                     {{ $t('setup.form.password_requirements') }}
                                 </el-text>
                             </div>
+                            <el-form-item :label="$t('setup.form.setup_token')" prop="setupToken" class="mb-2">
+                                <el-input
+                                    type="password"
+                                    showPassword
+                                    v-model="userFormData.setupToken"
+                                    autocomplete="off"
+                                />
+                            </el-form-item>
+                            <div class="setup-token-requirements mb-2">
+                                <el-text>
+                                    {{ $t('setup.form.setup_token_requirements') }}
+                                </el-text>
+                            </div>
                         </el-form>
                         <div class="d-flex justify-content-end gap-1">
                             <el-button type="primary" @click="handleUserFormSubmit()" :disabled="!isUserStepValid">
@@ -166,6 +179,7 @@
     interface UserFormData {
         username: string
         password: string
+        setupToken: string
     }
 
     interface SurveyData {
@@ -189,7 +203,8 @@
 
     const userFormData = ref<UserFormData>({
         username: "",
-        password: ""
+        password: "",
+        setupToken: ""
     })
 
     const surveyData = ref<SurveyData>({
@@ -272,12 +287,13 @@
 
     const userRules = computed(() => ({
         username: [{required: true, validator: validateEmail, trigger: "blur"}],
-        password: [{required: true, pattern: PASSWORD_REGEX, message: t("setup.validation.password_invalid"), trigger: "blur"}]
+        password: [{required: true, pattern: PASSWORD_REGEX, message: t("setup.validation.password_invalid"), trigger: "blur"}],
+        setupToken: [{required: true, message: t("setup.validation.setup_token_required"), trigger: "blur"}]
     }))
 
     const isUserStepValid = computed(() => {
         const data = userFormData.value
-        return data.username && data.password &&
+        return data.username && data.password && data.setupToken.trim() &&
             EMAIL_REGEX.test(data.username) && PASSWORD_REGEX.test(data.password) &&
             MailChecker.isValid(data.username)
     })
@@ -294,7 +310,8 @@
 
             await miscStore.addBasicAuth({
                 username: normalizedEmail,
-                password: userFormData.value.password
+                password: userFormData.value.password,
+                setupToken: userFormData.value.setupToken.trim()
             })
 
             BasicAuth.signIn(normalizedEmail, userFormData.value.password)

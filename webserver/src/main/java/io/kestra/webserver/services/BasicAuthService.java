@@ -1,5 +1,7 @@
 package io.kestra.webserver.services;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -21,6 +23,8 @@ import io.micronaut.context.annotation.ConfigurationProperties;
 import io.micronaut.context.annotation.Context;
 import io.micronaut.context.annotation.Requires;
 import io.micronaut.context.event.ApplicationEventPublisher;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.http.exceptions.HttpStatusException;
 import jakarta.annotation.Nullable;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
@@ -28,7 +32,9 @@ import jakarta.inject.Singleton;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Context
 @Singleton
 @Requires(property = "kestra.server-type", pattern = "(WEBSERVER|STANDALONE)")
@@ -36,6 +42,8 @@ import lombok.NoArgsConstructor;
 public class BasicAuthService {
     public static final String BASIC_AUTH_SETTINGS_KEY = "kestra.server.basic-auth";
     public static final String BASIC_AUTH_ERROR_CONFIG = "kestra.server.authentication-configuration-error";
+    public static final String BASIC_AUTH_SETUP_TOKEN_KEY = "kestra.server.basic-auth-setup-token";
+    public static final String SETUP_TOKEN_HEADER = "X-Kestra-Setup-Token";
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[a-zA-Z0-9_!#$%&’*+/=?`{|}~^.-]+@[a-zA-Z0-9.-]+$");
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("(?=.{8,})(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).*");
     private static final int EMAIL_PASSWORD_MAX_LEN = 256;
@@ -60,16 +68,23 @@ public class BasicAuthService {
         this.ossAuthEventPublisher = ossAuthEventPublisher;
     }
 
+    private volatile boolean configuredCredentialsInvalid = false;
+
     public BasicAuthService() {
     }
 
     @VisibleForTesting
     @PostConstruct
     public void init() {
+        configuredCredentialsInvalid = false;
         if (
             basicAuthConfiguration == null ||
                 (StringUtils.isBlank(basicAuthConfiguration.getUsername()) && StringUtils.isBlank(basicAuthConfiguration.getPassword()))
         ) {
+            deleteSettingIfPresent(BASIC_AUTH_ERROR_CONFIG);
+            if (!isBasicAuthInitialized()) {
+                findSetupToken().ifPresentOrElse(this::logSetupToken, this::getOrCreateSetupToken);
+            }
             return;
         }
         try {
@@ -77,16 +92,100 @@ public class BasicAuthService {
             save(
                 new BasicAuthCredentials(null, basicAuthConfiguration.getUsername(), basicAuthConfiguration.getPassword())
             );
-            if (settingRepository.findByKey(BASIC_AUTH_ERROR_CONFIG).isPresent()) {
-                settingRepository.delete(Setting.builder().key(BASIC_AUTH_ERROR_CONFIG).build());
-            }
+            deleteSettingIfPresent(BASIC_AUTH_ERROR_CONFIG);
+            deleteSettingIfPresent(BASIC_AUTH_SETUP_TOKEN_KEY);
         } catch (ValidationErrorException e) {
+            configuredCredentialsInvalid = true;
+            deleteSettingIfPresent(BASIC_AUTH_SETUP_TOKEN_KEY);
             settingRepository.save(
                 Setting.builder()
                     .key(BASIC_AUTH_ERROR_CONFIG)
                     .value(e.getInvalids())
                     .build()
             );
+            log.error(
+                "The configured 'kestra.server.basic-auth' credentials are invalid: {}. "
+                    + "Basic authentication setup from the API is disabled until the configuration is fixed.",
+                e.getInvalids()
+            );
+        }
+    }
+
+    /**
+     * Saves credentials submitted through the API. While basic authentication is not initialized, the setup token
+     * printed in the server logs at startup is required, and setup is refused when the configured credentials are invalid.
+     */
+    public void saveFromApi(BasicAuthCredentials basicAuthCredentials, @Nullable String setupToken) {
+        boolean bootstrap = !isBasicAuthInitialized();
+        if (bootstrap) {
+            if (configuredCredentialsInvalid) {
+                throw new HttpStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "The configured basic authentication credentials are invalid. Fix 'kestra.server.basic-auth' in the server configuration."
+                );
+            }
+            if (!isValidSetupToken(setupToken)) {
+                throw new HttpStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Invalid or missing setup token. The setup token is printed in the Kestra server logs."
+                );
+            }
+        }
+
+        save(basicAuthCredentials);
+
+        if (bootstrap) {
+            deleteSettingIfPresent(BASIC_AUTH_SETUP_TOKEN_KEY);
+        }
+    }
+
+    public boolean isValidSetupToken(@Nullable String setupToken) {
+        if (StringUtils.isBlank(setupToken) || configuredCredentialsInvalid || isBasicAuthInitialized()) {
+            return false;
+        }
+        return findSetupToken()
+            .map(
+                expected -> MessageDigest.isEqual(
+                    expected.getBytes(StandardCharsets.UTF_8),
+                    setupToken.getBytes(StandardCharsets.UTF_8)
+                )
+            )
+            .orElse(false);
+    }
+
+    @VisibleForTesting
+    public String getOrCreateSetupToken() {
+        Optional<String> existing = findSetupToken();
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        String token = AuthUtils.generateSalt();
+        settingRepository.save(Setting.builder().key(BASIC_AUTH_SETUP_TOKEN_KEY).value(token).build());
+        logSetupToken(token);
+        return token;
+    }
+
+    private Optional<String> findSetupToken() {
+        return settingRepository.findByKey(BASIC_AUTH_SETUP_TOKEN_KEY)
+            .map(Setting::getValue)
+            .map(Object::toString)
+            .filter(StringUtils::isNotBlank);
+    }
+
+    private void logSetupToken(String token) {
+        log.warn(
+            "\n*************************************************************\n"
+                + "Basic authentication is not configured yet.\n"
+                + "Use the following setup token to create the admin user:\n\n{}\n\n"
+                + "*************************************************************",
+            token
+        );
+    }
+
+    private void deleteSettingIfPresent(String key) {
+        if (settingRepository.findByKey(key).isPresent()) {
+            settingRepository.delete(Setting.builder().key(key).build());
         }
     }
 
