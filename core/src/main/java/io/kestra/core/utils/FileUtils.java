@@ -1,11 +1,10 @@
 package io.kestra.core.utils;
 
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.StringUtils;
-
-import java.io.File;
 import java.net.URI;
 import java.util.Optional;
+
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Utility methods for manipulating files.
@@ -73,6 +72,37 @@ public final class FileUtils {
             return false;
         }
         var path = uri.getPath();
-        return path != null && (path.contains(".." + File.separator) || path.contains(File.separator + "..") || path.equals(".."));
+        if (path == null) {
+            return false;
+        }
+        if (path.indexOf('\0') >= 0) {
+            return true;
+        }
+        for (String segment : path.replace('\\', '/').split("/")) {
+            if ("..".equals(segment)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Reduces a client-provided file name to a safe base name: any directory part (using either '/' or '\\' as separator)
+     * is removed, and names that would resolve to the current or parent directory are rejected.
+     *
+     * @param fileName the client-provided file name
+     * @return the safe base name
+     * @throws IllegalArgumentException if no safe base name can be extracted
+     */
+    public static String toSafeFileName(String fileName) {
+        if (fileName == null) {
+            throw new IllegalArgumentException("File name cannot be null");
+        }
+        String normalized = fileName.replace('\\', '/');
+        String baseName = normalized.substring(normalized.lastIndexOf('/') + 1);
+        if (baseName.isBlank() || baseName.equals(".") || baseName.equals("..") || baseName.indexOf('\0') >= 0) {
+            throw new IllegalArgumentException("Invalid file name '" + fileName + "'");
+        }
+        return baseName;
     }
 }

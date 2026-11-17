@@ -34,6 +34,7 @@ import io.kestra.core.models.tasks.common.EncryptedString;
 import io.kestra.core.serializers.JacksonMapper;
 import io.kestra.core.storages.StorageContext;
 import io.kestra.core.storages.StorageInterface;
+import io.kestra.core.utils.FileUtils;
 import io.kestra.core.utils.ListUtils;
 import io.kestra.core.utils.MapUtils;
 
@@ -138,7 +139,14 @@ public class FlowInputOutput {
                         );
                     }
                     String inputId = oldStyleInput ? fileUpload.getFilename() : fileUpload.getName();
-                    String fileName = oldStyleInput ? FileInput.findFileInputExtension(inputs, fileUpload.getFilename()) : fileUpload.getFilename();
+                    String fileName;
+                    try {
+                        fileName = FileUtils.toSafeFileName(oldStyleInput ? FileInput.findFileInputExtension(inputs, fileUpload.getFilename()) : fileUpload.getFilename());
+                    } catch (IllegalArgumentException e) {
+                        fileUpload.discard();
+                        sink.error(e);
+                        return;
+                    }
 
                     if (!uploadFiles) {
                         URI from = URI.create(

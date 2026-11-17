@@ -204,6 +204,23 @@ class ReadFileFunctionTest {
     }
 
     @Test
+    void shouldFailReadingBackslashParentTraversal() {
+        String executionId = IdUtils.create();
+        Map<String, Object> variables = Map.of(
+            "flow", Map.of(
+                "id", "flow",
+                "namespace", "my.namespace",
+                "tenantId", MAIN_TENANT
+            ),
+            "execution", Map.of("id", executionId)
+        );
+        String path = "kestra:///my/namespace/flow/executions/" + executionId + "/%5C..%5C..%5C..%5C..%5C..%5C..%5C..%5C..%5C..%5C..%5Cetc/hostname";
+
+        assertThrows(IllegalArgumentException.class, () -> variableRenderer.render("{{ read('" + path + "') }}", variables));
+        assertThrows(IllegalArgumentException.class, () -> variableRenderer.render("{{ fileExists('" + path + "') }}", variables));
+    }
+
+    @Test
     @Property(name = "kestra.server-type", value = "EXECUTOR")
     @Disabled("Moved on the next release")
     void readFailOnNonWorkerNodes() {
