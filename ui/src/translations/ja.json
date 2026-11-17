@@ -1803,7 +1803,9 @@
         "firstName": "名",
         "lastName": "姓",
         "password": "パスワード",
-        "password_requirements": "少なくとも8文字で、1つの大文字と1つの数字を含めてください。"
+        "password_requirements": "少なくとも8文字で、1つの大文字と1つの数字を含めてください。",
+        "setup_token": "セットアップトークン",
+        "setup_token_requirements": "起動時に Kestra サーバーの log に出力されます。サーバーへのアクセス権があることを証明します。"
       },
       "login": "ログイン",
       "logout": "ログアウト",
@@ -1855,7 +1857,8 @@
         "firstName_required": "名が必要です",
         "incorrect_creds": "ユーザー名またはパスワードが無効です。資格情報が正しいことを確認してください。",
         "lastName_required": "姓が必要です",
-        "password_invalid": "無効なパスワード"
+        "password_invalid": "無効なパスワード",
+        "setup_token_required": "セットアップトークンは必須です"
       }
     },
     "show": "表示",

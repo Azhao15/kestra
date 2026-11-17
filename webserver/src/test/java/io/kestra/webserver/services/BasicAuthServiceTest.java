@@ -32,6 +32,8 @@ import io.kestra.webserver.services.BasicAuthService.BasicAuthConfiguration;
 
 import io.micronaut.context.env.Environment;
 import io.micronaut.context.event.ApplicationEventPublisher;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.http.exceptions.HttpStatusException;
 import jakarta.inject.Inject;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -40,7 +42,9 @@ import lombok.Getter;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static io.kestra.webserver.services.BasicAuthService.BASIC_AUTH_ERROR_CONFIG;
 import static io.kestra.webserver.services.BasicAuthService.BASIC_AUTH_SETTINGS_KEY;
+import static io.kestra.webserver.services.BasicAuthService.BASIC_AUTH_SETUP_TOKEN_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -313,6 +317,46 @@ class BasicAuthServiceTest {
             Arguments.of(new ConfigWrapper(new BasicAuthConfiguration(USER_NAME, PASSWORD + "a".repeat(246), null, null)), "The length of email or password should not exceed 256 characters.")
 
         );
+    }
+
+    @Test
+    void saveFromApi_shouldRequireSetupToken_beforeInitialization() {
+        var tmpSettingsRepo = new InMemorySettingRepository();
+        var basicAuthService = new BasicAuthService(tmpSettingsRepo, new BasicAuthConfiguration(null, null, null, null), instanceService, ApplicationEventPublisher.noOp());
+        basicAuthService.init();
+
+        assertThat(tmpSettingsRepo.findByKey(BASIC_AUTH_SETUP_TOKEN_KEY)).as("setup token generated at startup").isPresent();
+        var credentials = new BasicAuthCredentials(null, USER_NAME, PASSWORD);
+
+        assertThatThrownBy(() -> basicAuthService.saveFromApi(credentials, null))
+            .isInstanceOfSatisfying(HttpStatusException.class, e -> assertThat(e.getStatus().getCode()).isEqualTo(HttpStatus.FORBIDDEN.getCode()));
+        assertThatThrownBy(() -> basicAuthService.saveFromApi(credentials, "wrong-token"))
+            .isInstanceOfSatisfying(HttpStatusException.class, e -> assertThat(e.getStatus().getCode()).isEqualTo(HttpStatus.FORBIDDEN.getCode()));
+        assertFalse(basicAuthService.isBasicAuthInitialized());
+
+        String setupToken = basicAuthService.getOrCreateSetupToken();
+        basicAuthService.saveFromApi(credentials, setupToken);
+
+        assertTrue(basicAuthService.isBasicAuthInitialized());
+        assertThat(tmpSettingsRepo.findByKey(BASIC_AUTH_SETUP_TOKEN_KEY)).as("setup token is consumed").isEmpty();
+        assertFalse(basicAuthService.isValidSetupToken(setupToken));
+    }
+
+    @Test
+    void saveFromApi_shouldFailClosed_whenConfiguredCredentialsAreInvalid() {
+        var tmpSettingsRepo = new InMemorySettingRepository();
+        var basicAuthService = new BasicAuthService(tmpSettingsRepo, new BasicAuthConfiguration("admin", PASSWORD, null, null), instanceService, ApplicationEventPublisher.noOp());
+        basicAuthService.init();
+
+        assertFalse(basicAuthService.isBasicAuthInitialized());
+        assertThat(basicAuthService.validationErrors()).isNotEmpty();
+        assertThat(tmpSettingsRepo.findByKey(BASIC_AUTH_SETUP_TOKEN_KEY)).isEmpty();
+
+        String setupToken = basicAuthService.getOrCreateSetupToken();
+        assertFalse(basicAuthService.isValidSetupToken(setupToken));
+        assertThatThrownBy(() -> basicAuthService.saveFromApi(new BasicAuthCredentials(null, USER_NAME, PASSWORD), setupToken))
+            .isInstanceOfSatisfying(HttpStatusException.class, e -> assertThat(e.getStatus().getCode()).isEqualTo(HttpStatus.FORBIDDEN.getCode()));
+        assertFalse(basicAuthService.isBasicAuthInitialized());
     }
 
     @Test

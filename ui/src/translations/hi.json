@@ -1803,7 +1803,9 @@
         "firstName": "पहला नाम",
         "lastName": "अंतिम नाम",
         "password": "पासवर्ड",
-        "password_requirements": "कम से कम 8 अक्षर जिनमें 1 बड़ा अक्षर और 1 संख्या हो।"
+        "password_requirements": "कम से कम 8 अक्षर जिनमें 1 बड़ा अक्षर और 1 संख्या हो।",
+        "setup_token": "सेटअप टोकन",
+        "setup_token_requirements": "स्टार्टअप पर Kestra सर्वर log में प्रिंट होता है। यह साबित करता है कि आपके पास सर्वर तक पहुंच है।"
       },
       "login": "लॉगिन",
       "logout": "लॉगआउट",
@@ -1855,7 +1857,8 @@
         "firstName_required": "पहला नाम आवश्यक है",
         "incorrect_creds": "अमान्य उपयोगकर्ता नाम या पासवर्ड। सुनिश्चित करें कि आपके प्रमाण-पत्र सही हैं।",
         "lastName_required": "अंतिम नाम आवश्यक है",
-        "password_invalid": "अमान्य पासवर्ड"
+        "password_invalid": "अमान्य पासवर्ड",
+        "setup_token_required": "सेटअप टोकन आवश्यक है"
       }
     },
     "show": "दिखाएं",

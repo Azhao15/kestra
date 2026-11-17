@@ -103,19 +103,41 @@ class AuthenticationFilterTest {
             .exchange(HttpRequest.GET("/api/v1/basicAuthValidationErrors"));
         assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.OK.getCode());
 
+        var setupCredentials = new BasicAuthCredentials(
+            IdUtils.create(),
+            basicAuthConfiguration.getUsername(),
+            basicAuthConfiguration.getPassword()
+        );
+
+        httpClientResponseException = assertThrows(
+            HttpClientResponseException.class, () -> client.toBlocking()
+                .exchange(HttpRequest.POST("/api/v1/basicAuth", setupCredentials))
+        );
+        assertThat(httpClientResponseException.getStatus().getCode()).as("setup without token is rejected").isEqualTo(HttpStatus.FORBIDDEN.getCode());
+
+        httpClientResponseException = assertThrows(
+            HttpClientResponseException.class, () -> client.toBlocking()
+                .exchange(HttpRequest.POST("/api/v1/basicAuth", setupCredentials).header(BasicAuthService.SETUP_TOKEN_HEADER, "wrong-token"))
+        );
+        assertThat(httpClientResponseException.getStatus().getCode()).as("setup with wrong token is rejected").isEqualTo(HttpStatus.FORBIDDEN.getCode());
+        assertThat(httpClientResponseException.getResponse().getHeaders().get("WWW-Authenticate")).as("no browser basic auth prompt during setup").isNull();
+        assertThat(basicAuthService.isBasicAuthInitialized()).isFalse();
+
+        String setupToken = basicAuthService.getOrCreateSetupToken();
         response = client.toBlocking()
-            .exchange(
-                HttpRequest.POST(
-                    "/api/v1/basicAuth", new BasicAuthCredentials(
-                        IdUtils.create(),
-                        basicAuthConfiguration.getUsername(),
-                        basicAuthConfiguration.getPassword()
-                    )
-                )
-            );
+            .exchange(HttpRequest.POST("/api/v1/basicAuth", setupCredentials).header(BasicAuthService.SETUP_TOKEN_HEADER, setupToken));
         assertThat(response.getStatus().getCode()).isEqualTo(HttpStatus.NO_CONTENT.getCode());
 
         assertThat(basicAuthService.isBasicAuthInitialized()).isTrue();
+
+        httpClientResponseException = assertThrows(
+            HttpClientResponseException.class, () -> client.toBlocking()
+                .exchange(
+                    HttpRequest.POST("/api/v1/basicAuth", new BasicAuthCredentials(IdUtils.create(), "anonymous@hacker", "hackerPassword1"))
+                        .header(BasicAuthService.SETUP_TOKEN_HEADER, setupToken)
+                )
+        );
+        assertThat(httpClientResponseException.getStatus().getCode()).as("setup token cannot be reused once initialized").isEqualTo(HttpStatus.UNAUTHORIZED.getCode());
 
         TestAuthFilter.ENABLED = true;
     }
