@@ -1,4 +1,5 @@
 import _merge from "lodash/merge";
+import _escape from "lodash/escape";
 import Utils from "../../../utils/utils";
 import {cssVariable, State} from "@kestra-io/ui-libs";
 import {getSchemeValue} from "../../../utils/scheme";
@@ -20,16 +21,16 @@ export function tooltip(tooltipModel: {
         let innerHtml = "";
 
         titleLines.forEach(function (title) {
-            innerHtml += "<h6>" + title + "</h6>";
+            innerHtml += "<h6>" + _escape(String(title)) + "</h6>";
         });
 
         bodyLines.forEach(function (body, i) {
             if (body.length > 0) {
                 const colors = tooltipModel.labelColors[i];
-                let style = "background:" + colors.backgroundColor;
-                style += "; border-color:" + colors.borderColor;
+                let style = "background:" + _escape(String(colors.backgroundColor));
+                style += "; border-color:" + _escape(String(colors.borderColor));
                 const span = "<span class=\"square\" style=\"" + style + "\"></span>";
-                innerHtml += span + body + "<br />";
+                innerHtml += span + body.map((line) => _escape(String(line))).join(",") + "<br />";
             }
         });
 
